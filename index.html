@@ -393,37 +393,37 @@
       <div class="tagline">مساحتك عشان تفضفض... وتسيب أثر يستاهل يتقرا</div>
 
       <div class="glass-card">
-        <div id="login-form">
+        <form id="login-form" onsubmit="event.preventDefault(); doLogin();">
           <div class="field">
             <label>اسم المستخدم</label>
-            <input id="login-name" type="text" placeholder="اكتب اسم المستخدم">
+            <input id="login-name" name="username" type="text" autocomplete="username" placeholder="اكتب اسم المستخدم">
           </div>
           <div class="field">
             <label>كلمة المرور</label>
-            <input id="login-pass" type="password" placeholder="••••••••">
+            <input id="login-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
           </div>
-          <button class="btn" onclick="doLogin()">تسجيل الدخول</button>
+          <button class="btn" type="submit">تسجيل الدخول</button>
           <div class="error-msg" id="login-error"></div>
           <div class="switch-line">مفيش حساب؟ <a onclick="showSignup()">اعمل واحد دلوقتي</a></div>
-        </div>
+        </form>
 
-        <div id="signup-form" style="display:none;">
+        <form id="signup-form" style="display:none;" onsubmit="event.preventDefault(); doSignup();">
           <div class="field">
             <label>اسم مستخدم (فريد ومحدش استخدمه قبلك)</label>
-            <input id="signup-name" type="text" placeholder="مثال: nourhan_writes">
+            <input id="signup-name" name="username" type="text" autocomplete="username" placeholder="مثال: nourhan_writes">
           </div>
           <div class="field">
             <label>الاسم الظاهر (Display Name)</label>
-            <input id="signup-dn" type="text" placeholder="اللي هيظهر لأصحابك">
+            <input id="signup-dn" name="nickname" type="text" autocomplete="nickname" placeholder="اللي هيظهر لأصحابك">
           </div>
           <div class="field">
             <label>كلمة المرور</label>
-            <input id="signup-pass" type="password" placeholder="••••••••">
+            <input id="signup-pass" name="new-password" type="password" autocomplete="new-password" placeholder="••••••••">
           </div>
-          <button class="btn" onclick="doSignup()">إنشاء الحساب</button>
+          <button class="btn" type="submit">إنشاء الحساب</button>
           <div class="error-msg" id="signup-error"></div>
           <div class="switch-line">عندك حساب؟ <a onclick="showLogin()">سجّل دخول</a></div>
-        </div>
+        </form>
       </div>
     </div>
 
