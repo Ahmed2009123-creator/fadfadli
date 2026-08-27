@@ -144,6 +144,15 @@
   .field input:focus, .field select:focus, .field textarea:focus{
     border-color: var(--border-gold-strong);
   }
+  .pass-wrap{ position:relative; }
+  .pass-wrap input{ padding-left:42px; }
+  .eye-btn{
+    position:absolute; left:6px; top:50%; transform:translateY(-50%);
+    background:none; border:none; cursor:pointer; padding:6px;
+    color:var(--muted); display:flex; align-items:center;
+  }
+  .eye-btn svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.6;}
+  .eye-btn:hover{ color:var(--gold); }
   .btn{
     display:inline-flex;
     align-items:center;
@@ -199,6 +208,22 @@
   .id-text .un{font-size:11.5px; color:var(--muted);}
   .logo-small{font-family:'Aref Ruqaa', serif; color:var(--gold-bright); font-size:20px;}
   header.top .filigree{position:absolute; bottom:0; left:0; right:0;}
+
+  /* global usage bar (always visible under the header) */
+  .usage-bar{
+    display:flex; gap:8px;
+    padding:0 18px 10px;
+  }
+  .usage-pill{
+    flex:1;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background:var(--panel); border:1px solid var(--border-gold);
+    border-radius:20px; padding:6px 10px;
+    font-size:11.5px; color:var(--muted);
+  }
+  .usage-pill b{ color:var(--gold-bright); font-weight:800; }
+  .usage-pill.warn{ border-color: rgba(168,70,90,0.6); }
+  .usage-pill.warn b{ color:var(--wine-bright); }
 
   main.view{
     flex:1;
@@ -400,7 +425,12 @@
           </div>
           <div class="field">
             <label>كلمة المرور</label>
-            <input id="login-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
+            <div class="pass-wrap">
+              <input id="login-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
+              <button type="button" class="eye-btn" onclick="togglePass('login-pass', this)">
+                <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
           </div>
           <button class="btn" type="submit">تسجيل الدخول</button>
           <div class="error-msg" id="login-error"></div>
@@ -418,7 +448,12 @@
           </div>
           <div class="field">
             <label>كلمة المرور</label>
-            <input id="signup-pass" name="new-password" type="password" autocomplete="new-password" placeholder="••••••••">
+            <div class="pass-wrap">
+              <input id="signup-pass" name="new-password" type="password" autocomplete="new-password" placeholder="•••••••• (٦ حروف على الأقل)">
+              <button type="button" class="eye-btn" onclick="togglePass('signup-pass', this)">
+                <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
           </div>
           <button class="btn" type="submit">إنشاء الحساب</button>
           <div class="error-msg" id="signup-error"></div>
@@ -441,13 +476,13 @@
         <div class="filigree"></div>
       </header>
 
+      <div class="usage-bar">
+        <div class="usage-pill" id="time-pill">⏱ الوقت المتبقي: <b id="time-left">60:00</b></div>
+        <div class="usage-pill" id="blogs-pill">📝 المدونات: <b id="blogs-left">0/7</b></div>
+      </div>
+
       <!-- ---- PROFILE VIEW ---- -->
       <main class="view" id="view-profile">
-        <div class="usage-strip">
-          <div class="usage-chip"><div class="num" id="blogs-left">7</div><div class="lbl">مدونات متبقية اليوم</div></div>
-          <div class="usage-chip"><div class="num" id="time-left">60</div><div class="lbl">دقيقة متبقية اليوم</div></div>
-        </div>
-
         <div class="profile-head">
           <div class="avatar-lg" id="profile-avatar">👤</div>
           <input class="dn-input" id="profile-dn-input" onchange="updateDisplayName(this.value)">
@@ -488,6 +523,24 @@
             <div class="rl">لون مدوناتك</div>
             <div class="swatches" id="accent-swatches"></div>
           </div>
+        </div>
+
+        <div class="settings-group">
+          <h4>تغيير كلمة السر</h4>
+          <div class="field">
+            <div class="pass-wrap">
+              <input id="cp-old" type="password" autocomplete="current-password" placeholder="كلمة السر الحالية">
+              <button type="button" class="eye-btn" onclick="togglePass('cp-old', this)"><svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="pass-wrap">
+              <input id="cp-new" type="password" autocomplete="new-password" placeholder="كلمة السر الجديدة (٦ حروف على الأقل)">
+              <button type="button" class="eye-btn" onclick="togglePass('cp-new', this)"><svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <button class="btn" onclick="changePassword()">تغيير كلمة السر</button>
+          <div class="error-msg" id="cp-error"></div>
         </div>
 
         <div class="settings-group">
