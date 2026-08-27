@@ -2,8 +2,8 @@
    فضفضلي — متصل بـ Supabase
    حط بيانات مشروعك هنا (Project Settings → API في Supabase):
    ========================================================================= */
-const SUPABASE_URL = 'ضع_رابط_مشروعك_هنا';
-const SUPABASE_ANON_KEY = 'ضع_anon_public_key_هنا';
+const SUPABASE_URL = 'https://uamzhfcxyzlutbmgvnmv.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_0yLuurldwAF9g9QhWGXa4Q_nrsRWZqV';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const EMAIL_DOMAIN = '@fadfadli.app'; // بريد وهمي مبني على اسم المستخدم، مش هيتبعتله أي إيميل حقيقي
