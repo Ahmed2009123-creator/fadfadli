@@ -1,6 +1,5 @@
 /* =========================================================================
    فضفضلي — متصل بـ Supabase عن طريق دوال RPC مخصصة (من غير Supabase Auth خالص)
-   حطي بيانات مشروعك هنا (Project Settings → API):
    ========================================================================= */
 const SUPABASE_URL = 'https://uamzhfcxyzlutbmgvnmv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_0yLuurldwAF9g9QhWGXa4Q_nrsRWZqV';
@@ -9,10 +8,12 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const TOKEN_KEY = 'fadfadli_token';
 const ACCENTS = ['#c9a66b', '#a8465a', '#7fb0a0', '#8ea8d8', '#c98ea3'];
 
-let me = null;   // بروفايل المستخدم الحالي
-let token = null; // توكن الجلسة
+let me = null;
+let token = null;
+let editingBlogId = null;
 
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function stripHtml(html){ const d=document.createElement('div'); d.innerHTML=html; return d.textContent || ''; }
 function fmtTime(sec){
   const m = Math.floor(sec/60), s = sec%60;
   return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
@@ -31,6 +32,31 @@ function rpcErrMsg(error){
   if(msg.includes('wrong_password')) return 'كلمة السر الحالية غلط';
   return 'حصل خطأ، جربي تاني';
 }
+
+/* ---------------- DIALOGS (بدل alert/confirm) ---------------- */
+function showAlert(message){
+  showDialogHTML(message, [{ label:'حسنًا', cls:'', action: closeDialog }]);
+}
+function showConfirm(message, onYes){
+  showDialogHTML(message, [
+    { label:'إلغاء', cls:'ghost', action: closeDialog },
+    { label:'نعم', cls:'wine', action: ()=>{ closeDialog(); onYes(); } }
+  ]);
+}
+function showDialogHTML(message, buttons){
+  document.getElementById('dialog-message').textContent = message;
+  const wrap = document.getElementById('dialog-buttons');
+  wrap.innerHTML = '';
+  buttons.forEach(b=>{
+    const btn = document.createElement('button');
+    btn.className = 'btn ' + (b.cls||'');
+    btn.textContent = b.label;
+    btn.onclick = b.action;
+    wrap.appendChild(btn);
+  });
+  document.getElementById('dialog-overlay').classList.add('open');
+}
+function closeDialog(){ document.getElementById('dialog-overlay').classList.remove('open'); }
 
 /* ---------------- PASSWORD VISIBILITY ---------------- */
 function togglePass(inputId){
@@ -80,9 +106,12 @@ async function doLogin(){
   enterApp();
 }
 
-async function logout(){
+function confirmLogout(){
+  showConfirm('هل تريد تسجيل الخروج فعلاً؟', doLogout);
+}
+async function doLogout(){
   if(token) await sb.rpc('logout_user', { p_token: token });
-  stopUsageTimer();
+  stopUsageTimer(); stopNotifPoll();
   localStorage.removeItem(TOKEN_KEY);
   token = null; me = null;
   document.getElementById('app-shell').style.display='none';
@@ -94,8 +123,7 @@ async function changePassword(){
   const oldP = document.getElementById('cp-old').value;
   const newP = document.getElementById('cp-new').value;
   const err = document.getElementById('cp-error');
-  err.style.color = '';
-  err.textContent = '';
+  err.style.color = ''; err.textContent = '';
   if(newP.length < 6){ err.textContent = 'كلمة المرور الجديدة لازم تكون ٦ حروف على الأقل'; return; }
   const { error } = await sb.rpc('change_password', { p_token: token, p_old_password: oldP, p_new_password: newP });
   if(error){ err.textContent = rpcErrMsg(error); return; }
@@ -131,6 +159,22 @@ function renderUsageBar(){
 function blogsLeft(){ return Math.max(0, 7 - me.blogs_used); }
 function secondsLeft(){ return Math.max(0, 3600 - me.seconds_used); }
 
+/* ---------------- NOTIFICATION BADGE POLLING ---------------- */
+let notifPoll = null;
+function startNotifPoll(){
+  stopNotifPoll();
+  refreshUnreadBadge();
+  notifPoll = setInterval(refreshUnreadBadge, 20000);
+}
+function stopNotifPoll(){ if(notifPoll) clearInterval(notifPoll); notifPoll=null; }
+async function refreshUnreadBadge(){
+  const { data } = await sb.rpc('get_unread_count', { p_token: token });
+  const badge = document.getElementById('notif-badge');
+  const n = data || 0;
+  badge.textContent = n > 9 ? '9+' : n;
+  badge.style.display = n > 0 ? 'flex' : 'none';
+}
+
 /* ---------------- ENTER APP / VIEWS ---------------- */
 async function enterApp(){
   document.getElementById('auth-screen').style.display='none';
@@ -147,8 +191,9 @@ async function enterApp(){
   buildAccentSwatches();
 
   renderUsageBar();
-  await Promise.all([renderMyBlogs(), renderFriendsGrid(), renderBlockList(), renderNotifications()]);
+  await Promise.all([renderMyBlogs(), renderFriendsGrid(), renderBlockList()]);
   startUsageTimer();
+  startNotifPoll();
   switchView('profile');
 }
 
@@ -157,7 +202,15 @@ function switchView(v){
     document.getElementById('view-'+id).style.display = (id===v)?'block':'none';
   });
   document.querySelectorAll('nav.bottom button').forEach(b=> b.classList.toggle('active', b.dataset.v === v));
-  if(v==='notifs') markNotificationsRead();
+  if(v==='notifs'){
+    renderNotifications().then(()=>{
+      mark_notifications_read_and_clear();
+    });
+  }
+}
+async function mark_notifications_read_and_clear(){
+  await sb.rpc('mark_notifications_read', { p_token: token });
+  refreshUnreadBadge();
 }
 
 /* ---------------- THEME / ACCENT ---------------- */
@@ -192,15 +245,31 @@ async function updateDisplayName(val){
   await sb.rpc('update_display_name', { p_token: token, p_name: val });
 }
 
-/* ---------------- COMPOSER ---------------- */
+/* ---------------- COMPOSER (إنشاء / تعديل) ---------------- */
 function openComposer(){
-  if(secondsLeft() <= 0){ alert('خلصت الساعة بتاعتك النهاردة، اتقابلنا بكرة 🌙'); return; }
-  if(blogsLeft() <= 0){ alert('وصلت لحد الـ٧ مدونات المسموحة النهاردة'); return; }
+  if(secondsLeft() <= 0){ showAlert('خلصت الساعة بتاعتك النهاردة، اتقابلنا بكرة 🌙'); return; }
+  if(blogsLeft() <= 0){ showAlert('وصلت لحد الـ٧ مدونات المسموحة النهاردة'); return; }
+  editingBlogId = null;
+  document.getElementById('composer-heading').textContent = 'مدونة فضفضلي جديدة';
+  document.getElementById('composer-submit-btn').textContent = 'نشر المدونة';
   document.getElementById('composer-title').value = '';
   document.getElementById('composer-body').innerHTML = '';
+  document.getElementById('composer-font').value = "'Tajawal', sans-serif";
   document.getElementById('composer-error').textContent = '';
   document.getElementById('composer-overlay').classList.add('open');
 }
+
+function openEditComposer(blogId, title, bodyHtml, font){
+  editingBlogId = blogId;
+  document.getElementById('composer-heading').textContent = 'تعديل المدونة';
+  document.getElementById('composer-submit-btn').textContent = 'حفظ التعديل';
+  document.getElementById('composer-title').value = title;
+  document.getElementById('composer-body').innerHTML = bodyHtml;
+  document.getElementById('composer-font').value = font;
+  document.getElementById('composer-error').textContent = '';
+  document.getElementById('composer-overlay').classList.add('open');
+}
+
 function closeSheet(id){ document.getElementById(id).classList.remove('open'); }
 function highlightSelection(color){ document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, color); }
 function clearHighlight(){ document.execCommand('foreColor', false, 'inherit'); }
@@ -212,13 +281,27 @@ async function publishBlog(){
   const err = document.getElementById('composer-error');
   if(!title || !body){ err.textContent = 'لازم تكتب عنوان ونص للمدونة'; return; }
 
-  const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font });
-  if(error){ err.textContent = rpcErrMsg(error); return; }
+  if(editingBlogId){
+    const { error } = await sb.rpc('edit_blog', { p_token: token, p_blog_id: editingBlogId, p_title: title, p_body: body, p_font: font });
+    if(error){ err.textContent = rpcErrMsg(error); return; }
+  } else {
+    const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font });
+    if(error){ err.textContent = rpcErrMsg(error); return; }
+    me.blogs_used += 1;
+    renderUsageBar();
+  }
 
-  me.blogs_used += 1;
-  renderUsageBar();
+  editingBlogId = null;
   closeSheet('composer-overlay');
   renderMyBlogs();
+}
+
+function deleteBlog(blogId){
+  showConfirm('هل تريد حذف هذه المدونة فعلاً؟', async ()=>{
+    const { error } = await sb.rpc('delete_blog', { p_token: token, p_blog_id: blogId });
+    if(error){ showAlert(rpcErrMsg(error)); return; }
+    renderMyBlogs();
+  });
 }
 
 async function renderMyBlogs(){
@@ -226,32 +309,71 @@ async function renderMyBlogs(){
   const { data } = await sb.rpc('list_blogs', { p_token: token, p_author_id: me.id });
   const mine = data || [];
   list.innerHTML = '';
-  if(mine.length===0){ list.innerHTML = '<div class="empty-state">لسه معملتش أي مدونة فضفضلي، دوس على + وابدأ</div>'; return; }
-  mine.forEach(b=> list.appendChild(renderBlogCard(b, me.id)));
+  if(mine.length===0){ list.innerHTML = '<div class="empty-state">لسه معملتش أي مدونة فضفضلي، دوسي على الزرار فوق وابدئي</div>'; return; }
+  mine.forEach(b=> list.appendChild(renderBlogCard(b, me.id, true)));
 }
 
-function renderBlogCard(b, authorId){
+function renderBlogCard(b, authorId, isMine){
   const card = document.createElement('div');
   card.className = 'blog-card';
+  const preview = stripHtml(b.body).slice(0, 90);
   card.innerHTML = `
     <div class="bh">
       <span class="bt" style="font-family:${b.font}">${escapeHtml(b.title)}</span>
       <span class="bd">${new Date(b.created_at).toLocaleDateString('ar-EG')}</span>
     </div>
-    <div class="bx" style="font-family:${b.font}">${b.body}</div>
+    <div class="bp">${escapeHtml(preview)}</div>
     <div class="actions">
-      <button class="like-btn ${b.liked_by_me?'liked':''}" onclick="toggleLike('${b.id}','${authorId}')">
+      <span class="like-badge">
         <svg viewBox="0 0 24 24" fill="${b.liked_by_me?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>
         ${b.like_count}
-      </button>
+      </span>
+      ${isMine ? `<div class="card-icon-btns">
+        <button class="icon-btn" title="تعديل"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+        <button class="icon-btn danger" title="حذف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+      </div>` : ''}
     </div>`;
+
+  card.addEventListener('click', ()=> openBlogReader(b, authorId));
+  if(isMine){
+    const [editBtn, delBtn] = card.querySelectorAll('.icon-btn');
+    editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openEditComposer(b.id, b.title, b.body, b.font); });
+    delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteBlog(b.id); });
+  }
   return card;
 }
 
-async function toggleLike(blogId, authorId){
-  await sb.rpc('toggle_like', { p_token: token, p_blog_id: blogId });
-  if(authorId === me.id) renderMyBlogs();
-  if(openFriendId === authorId) openFriendBlogs(openFriendId, openFriendName);
+/* ---------------- BLOG READER (شاشة كاملة) ---------------- */
+let readerBlog = null, readerAuthorId = null;
+function openBlogReader(b, authorId){
+  readerBlog = b; readerAuthorId = authorId;
+  document.getElementById('reader-title').textContent = b.title;
+  document.getElementById('reader-title').style.fontFamily = b.font;
+  document.getElementById('reader-text').innerHTML = b.body;
+  document.getElementById('reader-text').style.fontFamily = b.font;
+  document.getElementById('reader-date').textContent = new Date(b.created_at).toLocaleDateString('ar-EG');
+  updateReaderLikeUI();
+  document.getElementById('reader-overlay').classList.add('open');
+}
+function closeReader(){
+  document.getElementById('reader-overlay').classList.remove('open');
+  readerBlog = null; readerAuthorId = null;
+}
+function updateReaderLikeUI(){
+  const el = document.getElementById('reader-like');
+  const icon = document.getElementById('reader-like-icon');
+  el.classList.toggle('liked', !!readerBlog.liked_by_me);
+  icon.setAttribute('fill', readerBlog.liked_by_me ? 'currentColor' : 'none');
+  document.getElementById('reader-like-count').textContent = readerBlog.like_count;
+}
+async function toggleLikeInReader(){
+  if(!readerBlog) return;
+  const { data, error } = await sb.rpc('toggle_like', { p_token: token, p_blog_id: readerBlog.id });
+  if(error) return;
+  readerBlog.liked_by_me = !!data;
+  readerBlog.like_count += data ? 1 : -1;
+  updateReaderLikeUI();
+  if(readerAuthorId === me.id) renderMyBlogs();
 }
 
 /* ---------------- FRIENDS / REQUESTS ---------------- */
@@ -276,6 +398,8 @@ async function sendFriendRequest(){
 async function acceptFriend(otherId){
   await sb.rpc('accept_friend', { p_token: token, p_other_id: otherId });
   renderFriendsGrid();
+  renderNotifications();
+  refreshUnreadBadge();
 }
 
 async function renderFriendsGrid(){
@@ -289,7 +413,7 @@ async function renderFriendsGrid(){
   list.forEach(f=>{
     let tag = '';
     if(f.status === 'pending' && f.requested_by_me) tag = '<div class="pending-tag">بانتظار الموافقة</div>';
-    if(f.status === 'pending' && !f.requested_by_me) tag = `<button class="btn" style="padding:6px; font-size:11px; margin-top:6px;" onclick="acceptFriend('${f.id}')">قبول الطلب</button>`;
+    if(f.status === 'pending' && !f.requested_by_me) tag = `<button class="btn" style="padding:6px; font-size:11px; margin-top:6px;" onclick="event.stopPropagation(); acceptFriend('${f.id}')">قبول الطلب</button>`;
 
     const card = document.createElement('div');
     card.className = 'friend-card';
@@ -299,14 +423,12 @@ async function renderFriendsGrid(){
   });
 }
 
-let openFriendId = null, openFriendName = null;
 async function openFriendBlogs(otherId, otherDisplayName){
-  if(secondsLeft() <= 0){ alert('خلصت الساعة بتاعتك النهاردة'); return; }
+  if(secondsLeft() <= 0){ showAlert('خلصت الساعة بتاعتك النهاردة'); return; }
 
   const { data: blogs, error } = await sb.rpc('list_blogs', { p_token: token, p_author_id: otherId });
-  if(error){ alert(rpcErrMsg(error)); return; }
+  if(error){ showAlert(rpcErrMsg(error)); return; }
 
-  openFriendId = otherId; openFriendName = otherDisplayName;
   let overlay = document.getElementById('friend-blogs-overlay');
   if(!overlay){
     overlay = document.createElement('div');
@@ -317,13 +439,13 @@ async function openFriendBlogs(otherId, otherDisplayName){
   overlay.classList.add('open');
   overlay.innerHTML = `<div class="sheet">
       <div class="sheet-head"><h3>مدونات ${escapeHtml(otherDisplayName)}</h3>
-      <button class="close-x" onclick="document.getElementById('friend-blogs-overlay').remove(); openFriendId=null;">✕</button></div>
+      <button class="close-x" onclick="document.getElementById('friend-blogs-overlay').remove();">✕</button></div>
       <div id="friend-blogs-list"></div>
     </div>`;
 
   const list = overlay.querySelector('#friend-blogs-list');
   if(!blogs || blogs.length===0){ list.innerHTML = '<div class="empty-state">لسه مفيش مدونات</div>'; return; }
-  [...blogs].reverse().forEach(b=> list.appendChild(renderBlogCard(b, otherId)));
+  [...blogs].reverse().forEach(b=> list.appendChild(renderBlogCard(b, otherId, false)));
 }
 
 /* ---------------- BLOCKING ---------------- */
@@ -355,7 +477,7 @@ async function toggleBlock(otherId){
 }
 
 /* ---------------- NOTIFICATIONS ---------------- */
-const NOTIF_ICON = { accept:'🤝', block:'🚫', newblog:'📝', view:'👁️', like:'❤️' };
+const NOTIF_ICON = { accept:'🤝', block:'🚫', newblog:'📝', view:'👁️', like:'❤️', request:'➕' };
 
 async function renderNotifications(){
   const list = document.getElementById('notif-list');
@@ -367,13 +489,36 @@ async function renderNotifications(){
   rows.forEach(n=>{
     const el = document.createElement('div');
     el.className = 'notif-item';
+    const acceptBtn = (n.type === 'request' && n.related_id)
+      ? `<div class="ni-actions"><button class="btn" onclick="acceptFriend('${n.related_id}'); this.closest('.notif-item').remove();">قبول</button></div>`
+      : '';
     el.innerHTML = `<div class="ni-ico">${NOTIF_ICON[n.type]||'🔔'}</div>
-      <div><div class="ni-txt">${escapeHtml(n.text)}</div><div class="ni-time">${new Date(n.created_at).toLocaleString('ar-EG')}</div></div>`;
+      <div class="ni-body">
+        <div class="ni-txt">${escapeHtml(n.text)}</div>
+        <div class="ni-time">${new Date(n.created_at).toLocaleString('ar-EG')}</div>
+        ${acceptBtn}
+      </div>
+      <button class="notif-del" title="حذف" onclick="deleteNotification('${n.id}', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>`;
     list.appendChild(el);
   });
 }
-async function markNotificationsRead(){
-  await sb.rpc('mark_notifications_read', { p_token: token });
+
+async function deleteNotification(id, btnEl){
+  await sb.rpc('delete_notification', { p_token: token, p_notification_id: id });
+  const item = btnEl.closest('.notif-item');
+  if(item) item.remove();
+  const list = document.getElementById('notif-list');
+  document.getElementById('notif-empty').style.display = list.children.length ? 'none' : 'block';
+}
+
+function confirmClearNotifications(){
+  showConfirm('هل تريد مسح كل الإشعارات؟', async ()=>{
+    await sb.rpc('clear_notifications', { p_token: token });
+    renderNotifications();
+    refreshUnreadBadge();
+  });
 }
 
 /* ---------------- BOOTSTRAP ---------------- */
