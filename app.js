@@ -357,6 +357,9 @@ function openBlogReader(b, authorId){
   document.getElementById('reader-date').textContent = new Date(b.created_at).toLocaleDateString('ar-EG');
   updateReaderLikeUI();
   document.getElementById('reader-overlay').classList.add('open');
+  if(authorId !== me.id){
+    sb.rpc('mark_blog_viewed', { p_token: token, p_blog_id: b.id });
+  }
 }
 function closeReader(){
   document.getElementById('reader-overlay').classList.remove('open');
@@ -448,7 +451,7 @@ async function openFriendBlogs(otherId, otherDisplayName){
 
   const list = overlay.querySelector('#friend-blogs-list');
   if(!blogs || blogs.length===0){ list.innerHTML = '<div class="empty-state">لسه مفيش مدونات</div>'; return; }
-  [...blogs].reverse().forEach(b=> list.appendChild(renderBlogCard(b, otherId, false)));
+  [...blogs].forEach(b=> list.appendChild(renderBlogCard(b, otherId, false)));
 }
 
 /* ---------------- BLOCKING ---------------- */
