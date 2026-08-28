@@ -58,6 +58,25 @@ function showDialogHTML(message, buttons){
 }
 function closeDialog(){ document.getElementById('dialog-overlay').classList.remove('open'); }
 
+/* ---------------- TOAST + COPY USERNAME ---------------- */
+let toastTimer = null;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 1400);
+}
+function copyDisplayedUsername(el){
+  const uname = el.textContent.replace(/^@/, '').trim();
+  if(!uname || uname === '—') return;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(uname).then(()=> showToast('تم نسخ الاسم')).catch(()=> showToast('تعذر النسخ'));
+  } else {
+    showToast('تعذر النسخ');
+  }
+}
+
 /* ---------------- PASSWORD VISIBILITY ---------------- */
 function togglePass(inputId){
   const input = document.getElementById(inputId);
@@ -246,33 +265,83 @@ async function updateDisplayName(val){
 }
 
 /* ---------------- COMPOSER (إنشاء / تعديل) ---------------- */
+let selectedBlogColor = null;
+
+function buildComposerColorSwatches(){
+  const wrap = document.getElementById('composer-color-swatches');
+  wrap.innerHTML = '';
+  const defaultBtn = document.createElement('button');
+  defaultBtn.type = 'button';
+  defaultBtn.className = 'tb-btn' + (selectedBlogColor ? '' : ' active');
+  defaultBtn.textContent = 'افتراضي (لونك)';
+  defaultBtn.onclick = ()=>{ selectedBlogColor = null; buildComposerColorSwatches(); };
+  wrap.appendChild(defaultBtn);
+  ACCENTS.forEach(hex=>{
+    const s = document.createElement('span');
+    s.className = 'tb-swatch' + (selectedBlogColor===hex ? ' active':'');
+    s.style.background = hex;
+    s.onclick = ()=>{ selectedBlogColor = hex; buildComposerColorSwatches(); };
+    wrap.appendChild(s);
+  });
+}
+
 function openComposer(){
   if(secondsLeft() <= 0){ showAlert('خلصت الساعة بتاعتك النهاردة، اتقابلنا بكرة 🌙'); return; }
   if(blogsLeft() <= 0){ showAlert('وصلت لحد الـ٧ مدونات المسموحة النهاردة'); return; }
   editingBlogId = null;
+  selectedBlogColor = null;
   document.getElementById('composer-heading').textContent = 'مدونة فضفضلي جديدة';
   document.getElementById('composer-submit-btn').textContent = 'نشر المدونة';
   document.getElementById('composer-title').value = '';
   document.getElementById('composer-body').innerHTML = '';
   document.getElementById('composer-font').value = "'Tajawal', sans-serif";
   document.getElementById('composer-error').textContent = '';
+  buildComposerColorSwatches();
+  hideMarkRow();
   document.getElementById('composer-overlay').classList.add('open');
 }
 
-function openEditComposer(blogId, title, bodyHtml, font){
+function openEditComposer(blogId, title, bodyHtml, font, color){
   editingBlogId = blogId;
+  selectedBlogColor = color || null;
   document.getElementById('composer-heading').textContent = 'تعديل المدونة';
   document.getElementById('composer-submit-btn').textContent = 'حفظ التعديل';
   document.getElementById('composer-title').value = title;
   document.getElementById('composer-body').innerHTML = bodyHtml;
   document.getElementById('composer-font').value = font;
   document.getElementById('composer-error').textContent = '';
+  buildComposerColorSwatches();
+  hideMarkRow();
   document.getElementById('composer-overlay').classList.add('open');
 }
 
 function closeSheet(id){ document.getElementById(id).classList.remove('open'); }
-function highlightSelection(color){ document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, color); }
-function clearHighlight(){ document.execCommand('foreColor', false, 'inherit'); }
+
+/* ---------------- MARKER (تعليم على مقطع من النص) ---------------- */
+function hideMarkRow(){
+  document.getElementById('mark-row').classList.remove('show');
+  document.getElementById('mark-swatches').style.display = 'none';
+}
+function toggleMarkSwatches(){
+  const sw = document.getElementById('mark-swatches');
+  sw.style.display = sw.style.display === 'none' ? 'inline-flex' : 'none';
+}
+function applyMarkColor(color){
+  document.execCommand('styleWithCSS', false, true);
+  document.execCommand('hiliteColor', false, color);
+}
+document.addEventListener('selectionchange', ()=>{
+  const body = document.getElementById('composer-body');
+  if(!body) return;
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount === 0 || sel.isCollapsed){ hideMarkRow(); return; }
+  const anchor = sel.anchorNode;
+  if(anchor && body.contains(anchor)){
+    document.getElementById('mark-row').classList.add('show');
+  } else {
+    hideMarkRow();
+  }
+});
 
 async function publishBlog(){
   const title = document.getElementById('composer-title').value.trim();
@@ -282,10 +351,10 @@ async function publishBlog(){
   if(!title || !body){ err.textContent = 'لازم تكتب عنوان ونص للمدونة'; return; }
 
   if(editingBlogId){
-    const { error } = await sb.rpc('edit_blog', { p_token: token, p_blog_id: editingBlogId, p_title: title, p_body: body, p_font: font });
+    const { error } = await sb.rpc('edit_blog', { p_token: token, p_blog_id: editingBlogId, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor });
     if(error){ err.textContent = rpcErrMsg(error); return; }
   } else {
-    const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font });
+    const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor });
     if(error){ err.textContent = rpcErrMsg(error); return; }
     me.blogs_used += 1;
     renderUsageBar();
@@ -316,7 +385,7 @@ async function renderMyBlogs(){
 function renderBlogCard(b, authorId, isMine){
   const card = document.createElement('div');
   card.className = 'blog-card';
-  card.style.borderInlineStartColor = b.author_accent || 'var(--user-accent)';
+  card.style.borderInlineStartColor = b.color || b.author_accent || 'var(--user-accent)';
   const preview = stripHtml(b.body).slice(0, 90);
   card.innerHTML = `
     <div class="bh">
@@ -338,7 +407,7 @@ function renderBlogCard(b, authorId, isMine){
   card.addEventListener('click', ()=> openBlogReader(b, authorId));
   if(isMine){
     const [editBtn, delBtn] = card.querySelectorAll('.icon-btn');
-    editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openEditComposer(b.id, b.title, b.body, b.font); });
+    editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openEditComposer(b.id, b.title, b.body, b.font, b.color); });
     delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteBlog(b.id); });
   }
   return card;
@@ -408,6 +477,13 @@ async function acceptFriend(otherId){
   refreshUnreadBadge();
 }
 
+async function rejectFriendRequest(otherId){
+  await sb.rpc('reject_friend_request', { p_token: token, p_other_id: otherId });
+  renderFriendsGrid();
+  renderNotifications();
+  refreshUnreadBadge();
+}
+
 async function renderFriendsGrid(){
   const grid = document.getElementById('friends-grid');
   const empty = document.getElementById('friends-empty');
@@ -419,11 +495,14 @@ async function renderFriendsGrid(){
   list.forEach(f=>{
     let tag = '';
     if(f.status === 'pending' && f.requested_by_me) tag = '<div class="pending-tag">بانتظار الموافقة</div>';
-    if(f.status === 'pending' && !f.requested_by_me) tag = `<button class="btn" style="padding:6px; font-size:11px; margin-top:6px;" onclick="event.stopPropagation(); acceptFriend('${f.id}')">قبول الطلب</button>`;
+    if(f.status === 'pending' && !f.requested_by_me) tag = `<div style="display:flex; gap:6px; justify-content:center; margin-top:6px;">
+        <button class="btn" style="padding:6px; font-size:11px;" onclick="event.stopPropagation(); acceptFriend('${f.id}')">قبول</button>
+        <button class="btn ghost" style="padding:6px; font-size:11px;" onclick="event.stopPropagation(); rejectFriendRequest('${f.id}')">رفض</button>
+      </div>`;
 
     const card = document.createElement('div');
     card.className = 'friend-card';
-    card.innerHTML = `<div class="avatar">👤</div><div class="fn">${escapeHtml(f.display_name)}</div><div class="fu">@${escapeHtml(f.username)}</div>${tag}`;
+    card.innerHTML = `<div class="avatar">👤</div><div class="fn">${escapeHtml(f.display_name)}</div><div class="fu un-copy" onclick="event.stopPropagation(); copyDisplayedUsername(this)">@${escapeHtml(f.username)}</div>${tag}`;
     if(f.status === 'accepted') card.onclick = ()=> openFriendBlogs(f.id, f.display_name);
     grid.appendChild(card);
   });
@@ -471,7 +550,7 @@ async function renderBlockList(){
     const isBlocked = blocked.has(f.id);
     const row = document.createElement('div');
     row.className = 'row-item';
-    row.innerHTML = `<div><div class="rl">${escapeHtml(f.display_name)}</div><div class="rs">@${escapeHtml(f.username)}</div></div>
+    row.innerHTML = `<div><div class="rl">${escapeHtml(f.display_name)}</div><div class="rs un-copy" onclick="copyDisplayedUsername(this)">@${escapeHtml(f.username)}</div></div>
       <div style="display:flex; gap:6px;">
         <button class="btn ghost" style="width:auto; padding:7px 10px; font-size:11.5px;" onclick="confirmUnfriend('${f.id}','${escapeHtml(f.display_name).replace(/'/g,"\\'")}')">إلغاء الصداقة</button>
         <button class="btn ${isBlocked?'ghost':'wine'}" style="width:auto; padding:7px 10px; font-size:11.5px;" onclick="toggleBlock('${f.id}')">${isBlocked?'إلغاء الحجب':'حجب هذا المستخدم'}</button>
@@ -494,40 +573,73 @@ async function toggleBlock(otherId){
 }
 
 /* ---------------- NOTIFICATIONS ---------------- */
-const NOTIF_ICON = { accept:'🤝', block:'🚫', newblog:'📝', view:'👁️', like:'❤️', request:'➕' };
+const NOTIF_ICON = { accept:'🤝', reject:'🙅', block:'🚫', unblock:'🔓', unfriend:'💔', newblog:'📝', view:'👁️', like:'❤️', request:'➕' };
+
+function groupNotifications(rows){
+  const map = new Map();
+  const order = [];
+  rows.forEach(n=>{
+    const key = n.type + '|' + n.text;
+    if(!map.has(key)){ map.set(key, { ...n, count:1, ids:[n.id] }); order.push(key); }
+    else {
+      const g = map.get(key);
+      g.count += 1;
+      g.ids.push(n.id);
+      if(new Date(n.created_at) > new Date(g.created_at)) g.created_at = n.created_at;
+    }
+  });
+  return order.map(k=> map.get(k));
+}
 
 async function renderNotifications(){
   const list = document.getElementById('notif-list');
   const empty = document.getElementById('notif-empty');
   const { data } = await sb.rpc('list_notifications', { p_token: token });
   const rows = data || [];
+  const groups = groupNotifications(rows);
   list.innerHTML = '';
-  empty.style.display = rows.length ? 'none' : 'block';
-  rows.forEach(n=>{
+  empty.style.display = groups.length ? 'none' : 'block';
+  groups.forEach(g=>{
     const el = document.createElement('div');
     el.className = 'notif-item';
-    const acceptBtn = (n.type === 'request' && n.related_id)
-      ? `<div class="ni-actions"><button class="btn" onclick="acceptFriend('${n.related_id}'); this.closest('.notif-item').remove();">قبول</button></div>`
-      : '';
-    el.innerHTML = `<div class="ni-ico">${NOTIF_ICON[n.type]||'🔔'}</div>
+    const idsJson = JSON.stringify(g.ids).replace(/"/g, '&quot;');
+    let actionsHtml = '';
+    if(g.type === 'request' && g.related_id){
+      actionsHtml = `<div class="ni-actions">
+        <button class="btn" onclick='resolveRequestNotif(true, "${g.related_id}", ${idsJson})'>قبول</button>
+        <button class="btn ghost" onclick='resolveRequestNotif(false, "${g.related_id}", ${idsJson})'>رفض</button>
+      </div>`;
+    }
+    const multBadge = g.count > 1 ? `<span class="notif-mult">×${g.count}</span>` : '';
+    el.innerHTML = `<div class="ni-ico">${NOTIF_ICON[g.type]||'🔔'}</div>
       <div class="ni-body">
-        <div class="ni-txt">${escapeHtml(n.text)}</div>
-        <div class="ni-time">${new Date(n.created_at).toLocaleString('ar-EG')}</div>
-        ${acceptBtn}
+        <div class="ni-txt">${escapeHtml(g.text)}${multBadge}</div>
+        <div class="ni-time">${new Date(g.created_at).toLocaleString('ar-EG')}</div>
+        ${actionsHtml}
       </div>
-      <button class="notif-del" title="حذف" onclick="deleteNotification('${n.id}', this)">
+      <button class="notif-del" title="حذف" onclick='deleteNotificationGroup(${idsJson}, this)'>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
       </button>`;
     list.appendChild(el);
   });
 }
 
-async function deleteNotification(id, btnEl){
-  await sb.rpc('delete_notification', { p_token: token, p_notification_id: id });
+async function resolveRequestNotif(accept, otherId, ids){
+  if(accept) await sb.rpc('accept_friend', { p_token: token, p_other_id: otherId });
+  else await sb.rpc('reject_friend_request', { p_token: token, p_other_id: otherId });
+  for(const id of ids){ await sb.rpc('delete_notification', { p_token: token, p_notification_id: id }); }
+  renderFriendsGrid();
+  renderNotifications();
+  refreshUnreadBadge();
+}
+
+async function deleteNotificationGroup(ids, btnEl){
+  for(const id of ids){ await sb.rpc('delete_notification', { p_token: token, p_notification_id: id }); }
   const item = btnEl.closest('.notif-item');
   if(item) item.remove();
   const list = document.getElementById('notif-list');
   document.getElementById('notif-empty').style.display = list.children.length ? 'none' : 'block';
+  refreshUnreadBadge();
 }
 
 function confirmClearNotifications(){
