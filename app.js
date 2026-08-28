@@ -14,6 +14,13 @@ let editingBlogId = null;
 
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function stripHtml(html){ const d=document.createElement('div'); d.innerHTML=html; return d.textContent || ''; }
+function sanitizeHtml(html){
+  if(typeof DOMPurify === 'undefined') return stripHtml(html); // احتياطي: لو المكتبة ماتحمّلتش، اعرض نص خام بس من غير أي HTML
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b','i','u','br','span','div','mark','font'],
+    ALLOWED_ATTR: ['style']
+  });
+}
 function fmtTime(sec){
   const m = Math.floor(sec/60), s = sec%60;
   return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
@@ -37,6 +44,7 @@ function rpcErrMsg(error){
   if(msg.includes('cannot_add_self')) return 'مينفعش تضيف نفسك';
   if(msg.includes('already_exists')) return 'في طلب أو صداقة موجودة بالفعل';
   if(msg.includes('blocked')) return 'المستخدم ده حاجبك';
+  if(msg.includes('not_friends')) return 'لازم تكونوا أصحاب الأول عشان تقدر تتفاعل مع مدوناته';
   if(msg.includes('time_over')) return 'خلصت الساعة بتاعتك النهاردة';
   if(msg.includes('blogs_over')) return 'وصلت لحد الـ٧ مدونات المسموحة النهاردة';
   if(msg.includes('wrong_password')) return 'كلمة السر الحالية غلط';
@@ -334,7 +342,7 @@ function openEditComposer(blogId, title, bodyHtml, font, color){
   document.getElementById('composer-heading').textContent = 'تعديل المدونة';
   document.getElementById('composer-submit-btn').textContent = 'حفظ التعديل';
   document.getElementById('composer-title').value = title;
-  document.getElementById('composer-body').innerHTML = bodyHtml;
+  document.getElementById('composer-body').innerHTML = sanitizeHtml(bodyHtml);
   document.getElementById('composer-font').value = font;
   document.getElementById('composer-error').textContent = '';
   buildComposerColorSwatches();
@@ -372,7 +380,7 @@ document.addEventListener('selectionchange', ()=>{
 
 async function publishBlog(){
   const title = document.getElementById('composer-title').value.trim();
-  const body = document.getElementById('composer-body').innerHTML.trim();
+  const body = sanitizeHtml(document.getElementById('composer-body').innerHTML.trim());
   const font = document.getElementById('composer-font').value;
   const err = document.getElementById('composer-error');
   if(!title || !body){ err.textContent = 'لازم تكتب عنوان ونص للمدونة'; return; }
@@ -448,7 +456,7 @@ function openBlogReader(b, authorId){
   readerBlog = b; readerAuthorId = authorId;
   document.getElementById('reader-title').textContent = b.title;
   document.getElementById('reader-title').style.fontFamily = b.font;
-  document.getElementById('reader-text').innerHTML = b.body;
+  document.getElementById('reader-text').innerHTML = sanitizeHtml(b.body);
   document.getElementById('reader-text').style.fontFamily = b.font;
   document.getElementById('reader-date').textContent = new Date(b.created_at).toLocaleDateString('ar-EG');
   updateReaderLikeUI();
