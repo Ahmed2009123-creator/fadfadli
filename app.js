@@ -316,6 +316,7 @@ async function renderMyBlogs(){
 function renderBlogCard(b, authorId, isMine){
   const card = document.createElement('div');
   card.className = 'blog-card';
+  card.style.borderInlineStartColor = b.author_accent || 'var(--user-accent)';
   const preview = stripHtml(b.body).slice(0, 90);
   card.innerHTML = `
     <div class="bh">
@@ -346,6 +347,8 @@ function renderBlogCard(b, authorId, isMine){
 /* ---------------- BLOG READER (شاشة كاملة) ---------------- */
 let readerBlog = null, readerAuthorId = null;
 function openBlogReader(b, authorId){
+  const friendSheet = document.getElementById('friend-blogs-overlay');
+  if(friendSheet) friendSheet.classList.remove('open');
   readerBlog = b; readerAuthorId = authorId;
   document.getElementById('reader-title').textContent = b.title;
   document.getElementById('reader-title').style.fontFamily = b.font;
@@ -466,8 +469,19 @@ async function renderBlockList(){
     const row = document.createElement('div');
     row.className = 'row-item';
     row.innerHTML = `<div><div class="rl">${escapeHtml(f.display_name)}</div><div class="rs">@${escapeHtml(f.username)}</div></div>
-      <button class="btn ${isBlocked?'ghost':'wine'}" style="width:auto; padding:7px 12px; font-size:12px;" onclick="toggleBlock('${f.id}')">${isBlocked?'إلغاء الحجب':'حجب هذا المستخدم'}</button>`;
+      <div style="display:flex; gap:6px;">
+        <button class="btn ghost" style="width:auto; padding:7px 10px; font-size:11.5px;" onclick="confirmUnfriend('${f.id}','${escapeHtml(f.display_name).replace(/'/g,"\\'")}')">إلغاء الصداقة</button>
+        <button class="btn ${isBlocked?'ghost':'wine'}" style="width:auto; padding:7px 10px; font-size:11.5px;" onclick="toggleBlock('${f.id}')">${isBlocked?'إلغاء الحجب':'حجب هذا المستخدم'}</button>
+      </div>`;
     wrap.appendChild(row);
+  });
+}
+
+function confirmUnfriend(otherId, otherName){
+  showConfirm(`هل تريد إلغاء الصداقة مع ${otherName}؟ هتحتاجوا تضيفوا بعض تاني لو غيرتوا رأيكم.`, async ()=>{
+    await sb.rpc('unfriend', { p_token: token, p_other_id: otherId });
+    renderBlockList();
+    renderFriendsGrid();
   });
 }
 
