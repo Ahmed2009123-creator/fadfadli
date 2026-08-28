@@ -172,6 +172,7 @@
   }
   .btn:hover{ background:linear-gradient(180deg, rgba(201,166,107,0.32), rgba(201,166,107,0.12)); }
   .btn:active{ transform:scale(.98); }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; transform:none; }
   .btn.ghost{
     background:transparent;
     border-color:var(--border-gold);
@@ -557,7 +558,7 @@
       </header>
 
       <div class="usage-bar">
-        <div class="usage-pill" id="time-pill">⏱ الوقت المتبقي: <b id="time-left">60:00</b></div>
+        <div class="usage-pill" id="time-pill"><span id="time-label">⏱ الوقت المتبقي:</span> <b id="time-left">60:00</b></div>
         <div class="usage-pill" id="blogs-pill">📝 المدونات: <b id="blogs-left">0/7</b></div>
       </div>
 
@@ -734,6 +735,34 @@
           <div class="reader-like" id="reader-like" onclick="toggleLikeInReader()">
             <svg viewBox="0 0 24 24" id="reader-like-icon" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>
             <span id="reader-like-count">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ INTRO / ONBOARDING (مرة واحدة فقط لكل حساب) ============ -->
+    <div class="overlay reader-overlay" id="intro-overlay">
+      <div class="reader-sheet">
+        <div class="reader-body" style="display:flex; flex-direction:column; justify-content:center; padding-top:30px;">
+          <div id="intro-step1">
+            <div class="reader-title" style="text-align:center; font-size:26px;">ما هو موقع فضفضلي</div>
+            <div class="reader-text" style="margin-top:18px; font-size:14.5px;">موقع فضفضلي هو موقع لكتابة المدونات وعمل ما يسمى بالفضفضة.
+صمم هذا الموقع بطريقة مدروسة لتتفادى معظم الأشياء التي توقعنا في المعاصي، فلا يوجد صور، ولا يوجد محادثة خاصة، ولا تستطيع أن تكلم أحدا إلا بمعرفة اسمه بالحرف الواحد، ولك وقت معين وعدد معين من المدونات كي لا تضيع الوقت الذي ستُسأل عليه يوم القيامة.</div>
+            <button class="btn" style="margin-top:26px;" onclick="introNext()">التالي</button>
+          </div>
+          <div id="intro-step2" style="display:none;">
+            <div class="reader-title" style="text-align:center; font-size:26px;">القوانين</div>
+            <div class="reader-text" style="margin-top:18px; font-size:14.5px; line-height:2.1;">
+              ١- ممنوع التفوه بألفاظ خارجة في المدونة<br>
+              ٢- عندما تنتهي مدتك لن تستطيع قراءة أو كتابة مدونات<br>
+              ٣- لا تزعج أحدا والزم حدودك في موقعنا<br>
+              ٤- استمتع ولكن فيما يرضي الله
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; margin-top:22px; font-size:13.5px; cursor:pointer;">
+              <input type="checkbox" id="intro-agree-checkbox" onchange="introAgreeChanged(this.checked)" style="width:18px; height:18px; accent-color:var(--gold);">
+              أنا موافق على الشروط والقوانين
+            </label>
+            <button class="btn" id="intro-start-btn" style="margin-top:18px;" disabled onclick="introFinish()">ابدأ الفضفضة</button>
           </div>
         </div>
       </div>

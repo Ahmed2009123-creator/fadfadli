@@ -18,6 +18,16 @@ function fmtTime(sec){
   const m = Math.floor(sec/60), s = sec%60;
   return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
 }
+function fmtHMS(sec){
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if(h > 0) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  return fmtTime(sec);
+}
+function secondsUntilUtcMidnight(){
+  const now = new Date();
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+1, 0, 0, 0, 0);
+  return Math.max(0, Math.floor((next - now.getTime())/1000));
+}
 function rpcErrMsg(error){
   const msg = (error && error.message) || '';
   if(msg.includes('username_taken')) return 'اسم المستخدم ده متاخد، جرب اسم تاني';
@@ -30,7 +40,7 @@ function rpcErrMsg(error){
   if(msg.includes('time_over')) return 'خلصت الساعة بتاعتك النهاردة';
   if(msg.includes('blogs_over')) return 'وصلت لحد الـ٧ مدونات المسموحة النهاردة';
   if(msg.includes('wrong_password')) return 'كلمة السر الحالية غلط';
-  return 'حصل خطأ، جربي تاني';
+  return 'حصل خطأ، جرب تاني';
 }
 
 /* ---------------- DIALOGS (بدل alert/confirm) ---------------- */
@@ -107,7 +117,7 @@ async function doSignup(){
 
   token = data.token; me = data.profile;
   localStorage.setItem(TOKEN_KEY, token);
-  enterApp();
+  showIntroIfNeeded();
 }
 
 async function doLogin(){
@@ -122,7 +132,7 @@ async function doLogin(){
 
   token = data.token; me = data.profile;
   localStorage.setItem(TOKEN_KEY, token);
-  enterApp();
+  showIntroIfNeeded();
 }
 
 function confirmLogout(){
@@ -154,23 +164,40 @@ async function changePassword(){
 
 /* ---------------- USAGE (٧ مدونات / ٦٠ دقيقة يوميًا) ---------------- */
 let usageTimer = null;
+let lastUsageDateStr = new Date().toISOString().slice(0,10);
 function startUsageTimer(){
   stopUsageTimer();
+  lastUsageDateStr = new Date().toISOString().slice(0,10);
   usageTimer = setInterval(async ()=>{
-    if(me.seconds_used >= 3600) return;
-    const { data, error } = await sb.rpc('bump_usage_seconds', { p_token: token, p_delta: 1 });
-    if(!error && data){
-      me.blogs_used = data.blogs_used;
-      me.seconds_used = data.seconds_used;
-      renderUsageBar();
+    const todayStr = new Date().toISOString().slice(0,10);
+    if(todayStr !== lastUsageDateStr){
+      lastUsageDateStr = todayStr;
+      const { data } = await sb.rpc('get_session_profile', { p_token: token });
+      if(data) me = data;
     }
+    if(me.seconds_used < 3600){
+      const { data, error } = await sb.rpc('bump_usage_seconds', { p_token: token, p_delta: 1 });
+      if(!error && data){
+        me.blogs_used = data.blogs_used;
+        me.seconds_used = data.seconds_used;
+      }
+    }
+    renderUsageBar();
   }, 1000);
 }
 function stopUsageTimer(){ if(usageTimer) clearInterval(usageTimer); usageTimer=null; }
 
 function renderUsageBar(){
   const secLeft = Math.max(0, 3600 - me.seconds_used);
-  document.getElementById('time-left').textContent = fmtTime(secLeft);
+  const label = document.getElementById('time-label');
+  const timeEl = document.getElementById('time-left');
+  if(secLeft > 0){
+    label.textContent = '⏱ الوقت المتبقي:';
+    timeEl.textContent = fmtTime(secLeft);
+  } else {
+    label.textContent = '⏳ متبقي للساعة الجديدة:';
+    timeEl.textContent = fmtHMS(secondsUntilUtcMidnight());
+  }
   document.getElementById('blogs-left').textContent = me.blogs_used + '/7';
   document.getElementById('time-pill').classList.toggle('warn', secLeft <= 300);
   document.getElementById('blogs-pill').classList.toggle('warn', me.blogs_used >= 7);
@@ -378,7 +405,7 @@ async function renderMyBlogs(){
   const { data } = await sb.rpc('list_blogs', { p_token: token, p_author_id: me.id });
   const mine = data || [];
   list.innerHTML = '';
-  if(mine.length===0){ list.innerHTML = '<div class="empty-state">لسه معملتش أي مدونة فضفضلي، دوسي على الزرار فوق وابدئي</div>'; return; }
+  if(mine.length===0){ list.innerHTML = '<div class="empty-state">لسه معملتش أي مدونة فضفضلي، دوس على الزرار فوق وابدأ</div>'; return; }
   mine.forEach(b=> list.appendChild(renderBlogCard(b, me.id, true)));
 }
 
@@ -657,5 +684,28 @@ function confirmClearNotifications(){
   const { data, error } = await sb.rpc('get_session_profile', { p_token: saved });
   if(error || !data){ localStorage.removeItem(TOKEN_KEY); return; }
   token = saved; me = data;
-  await enterApp();
+  showIntroIfNeeded();
 })();
+
+/* ---------------- INTRO / ONBOARDING (تظهر مرة واحدة فقط لكل حساب) ---------------- */
+function showIntroIfNeeded(){
+  if(me.seen_intro){ enterApp(); return; }
+  document.getElementById('intro-step1').style.display='block';
+  document.getElementById('intro-step2').style.display='none';
+  document.getElementById('intro-agree-checkbox').checked = false;
+  document.getElementById('intro-start-btn').disabled = true;
+  document.getElementById('intro-overlay').classList.add('open');
+}
+function introNext(){
+  document.getElementById('intro-step1').style.display='none';
+  document.getElementById('intro-step2').style.display='block';
+}
+function introAgreeChanged(checked){
+  document.getElementById('intro-start-btn').disabled = !checked;
+}
+async function introFinish(){
+  await sb.rpc('mark_intro_seen', { p_token: token });
+  me.seen_intro = true;
+  document.getElementById('intro-overlay').classList.remove('open');
+  enterApp();
+}
