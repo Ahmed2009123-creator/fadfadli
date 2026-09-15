@@ -558,8 +558,7 @@
       </header>
 
       <div class="usage-bar">
-        <div class="usage-pill" id="time-pill"><span id="time-label">⏱ الوقت المتبقي:</span> <b id="time-left">60:00</b></div>
-        <div class="usage-pill" id="blogs-pill">📝 المدونات: <b id="blogs-left">0/7</b></div>
+        <div class="usage-pill">📝 عدد مدوناتك: <b id="blogs-count">0</b></div>
       </div>
 
       <!-- ---- PROFILE VIEW ---- -->
@@ -746,18 +745,18 @@
         <div class="reader-body" style="display:flex; flex-direction:column; justify-content:center; padding-top:30px;">
           <div id="intro-step1">
             <div class="reader-title" style="text-align:center; font-size:26px;">ما هو موقع فضفضلي</div>
-            <div class="reader-text" style="margin-top:18px; font-size:14.5px;">موقع فضفضلي هو موقع لكتابة المدونات وعمل ما يسمى بالفضفضة.
-صمم هذا الموقع بطريقة مدروسة لتتفادى معظم الأشياء التي توقعنا في المعاصي، فلا يوجد صور، ولا يوجد محادثة خاصة، ولا تستطيع أن تكلم أحدا إلا بمعرفة اسمه بالحرف الواحد، ولك وقت معين وعدد معين من المدونات كي لا تضيع الوقت الذي ستُسأل عليه يوم القيامة.</div>
+            <div class="reader-text" style="margin-top:18px; font-size:14.5px;">الموقع ده اتصمم لك مخصوص علشان تفضفض فيه براحتك.
+موقع فضفضلي هو موقع لكتابة المدونات وعمل ما يسمى بالفضفضة.
+صمم هذا الموقع بطريقة مدروسة لتتفادى معظم الأشياء التي توقعنا في المعاصي، فلا يوجد صور، ولا يوجد محادثة خاصة، ولا تستطيع أن تكلم أحدا إلا بمعرفة اسمه بالحرف الواحد، كي لا تضيع الوقت الذي ستُسأل عليه يوم القيامة.</div>
             <button class="btn" style="margin-top:26px;" onclick="introNext()">التالي</button>
           </div>
           <div id="intro-step2" style="display:none;">
             <div class="reader-title" style="text-align:center; font-size:26px;">القوانين</div>
             <div class="reader-text" style="margin-top:18px; font-size:14.5px; line-height:2.1;">
               ١- ممنوع التفوه بألفاظ خارجة في المدونة<br>
-              ٢- عندما تنتهي مدتك لن تستطيع قراءة أو كتابة مدونات<br>
+              ٢- لازم تستنى نص دقيقة بين كل مدونة والتانية<br>
               ٣- لا تزعج أحدا والزم حدودك في موقعنا<br>
-              ٤- استمتع ولكن فيما يرضي الله<br>
-              ٥- تسجيل دخولك بيفضل شغال لمدة ٣٠ يوم بس من أول ما تسجل، وبعدها هتحتاج تسجل دخول تاني
+              ٤- استمتع ولكن فيما يرضي الله
             </div>
             <label style="display:flex; align-items:center; gap:8px; margin-top:22px; font-size:13.5px; cursor:pointer;">
               <input type="checkbox" id="intro-agree-checkbox" onchange="introAgreeChanged(this.checked)" style="width:18px; height:18px; accent-color:var(--gold);">

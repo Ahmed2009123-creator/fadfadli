@@ -21,20 +21,6 @@ function sanitizeHtml(html){
     ALLOWED_ATTR: ['style']
   });
 }
-function fmtTime(sec){
-  const m = Math.floor(sec/60), s = sec%60;
-  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-}
-function fmtHMS(sec){
-  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-  if(h > 0) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-  return fmtTime(sec);
-}
-function secondsUntilUtcMidnight(){
-  const now = new Date();
-  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+1, 0, 0, 0, 0);
-  return Math.max(0, Math.floor((next - now.getTime())/1000));
-}
 function rpcErrMsg(error){
   const msg = (error && error.message) || '';
   if(msg.includes('username_taken')) return 'اسم المستخدم ده متاخد، جرب اسم تاني';
@@ -45,8 +31,7 @@ function rpcErrMsg(error){
   if(msg.includes('already_exists')) return 'في طلب أو صداقة موجودة بالفعل';
   if(msg.includes('blocked')) return 'المستخدم ده حاجبك';
   if(msg.includes('not_friends')) return 'لازم تكونوا أصحاب الأول عشان تقدر تتفاعل مع مدوناته';
-  if(msg.includes('time_over')) return 'خلصت الساعة بتاعتك النهاردة';
-  if(msg.includes('blogs_over')) return 'وصلت لحد الـ٧ مدونات المسموحة النهاردة';
+  if(msg.includes('cooldown')) return 'لازم تستنى نص دقيقة بين كل مدونة والتانية';
   if(msg.includes('wrong_password')) return 'كلمة السر الحالية غلط';
   return 'حصل خطأ، جرب تاني';
 }
@@ -148,7 +133,7 @@ function confirmLogout(){
 }
 async function doLogout(){
   if(token) await sb.rpc('logout_user', { p_token: token });
-  stopUsageTimer(); stopNotifPoll();
+  stopNotifPoll();
   localStorage.removeItem(TOKEN_KEY);
   token = null; me = null;
   document.getElementById('app-shell').style.display='none';
@@ -170,48 +155,10 @@ async function changePassword(){
   err.textContent = 'اتغيرت كلمة السر بنجاح';
 }
 
-/* ---------------- USAGE (٧ مدونات / ٦٠ دقيقة يوميًا) ---------------- */
-let usageTimer = null;
-let lastUsageDateStr = new Date().toISOString().slice(0,10);
-function startUsageTimer(){
-  stopUsageTimer();
-  lastUsageDateStr = new Date().toISOString().slice(0,10);
-  usageTimer = setInterval(async ()=>{
-    const todayStr = new Date().toISOString().slice(0,10);
-    if(todayStr !== lastUsageDateStr){
-      lastUsageDateStr = todayStr;
-      const { data } = await sb.rpc('get_session_profile', { p_token: token });
-      if(data) me = data;
-    }
-    if(me.seconds_used < 3600){
-      const { data, error } = await sb.rpc('bump_usage_seconds', { p_token: token, p_delta: 1 });
-      if(!error && data){
-        me.blogs_used = data.blogs_used;
-        me.seconds_used = data.seconds_used;
-      }
-    }
-    renderUsageBar();
-  }, 1000);
+/* ---------------- عدد المدونات (بدون حدود يومية أو مؤقت) ---------------- */
+function updateBlogCountDisplay(n){
+  document.getElementById('blogs-count').textContent = n;
 }
-function stopUsageTimer(){ if(usageTimer) clearInterval(usageTimer); usageTimer=null; }
-
-function renderUsageBar(){
-  const secLeft = Math.max(0, 3600 - me.seconds_used);
-  const label = document.getElementById('time-label');
-  const timeEl = document.getElementById('time-left');
-  if(secLeft > 0){
-    label.textContent = '⏱ الوقت المتبقي:';
-    timeEl.textContent = fmtTime(secLeft);
-  } else {
-    label.textContent = '⏳ متبقي للساعة الجديدة:';
-    timeEl.textContent = fmtHMS(secondsUntilUtcMidnight());
-  }
-  document.getElementById('blogs-left').textContent = me.blogs_used + '/7';
-  document.getElementById('time-pill').classList.toggle('warn', secLeft <= 300);
-  document.getElementById('blogs-pill').classList.toggle('warn', me.blogs_used >= 7);
-}
-function blogsLeft(){ return Math.max(0, 7 - me.blogs_used); }
-function secondsLeft(){ return Math.max(0, 3600 - me.seconds_used); }
 
 /* ---------------- NOTIFICATION BADGE POLLING ---------------- */
 let notifPoll = null;
@@ -244,9 +191,7 @@ async function enterApp(){
   document.getElementById('theme-toggle').checked = (me.theme === 'light');
   buildAccentSwatches();
 
-  renderUsageBar();
   await Promise.all([renderMyBlogs(), renderFriendsGrid(), renderBlockList()]);
-  startUsageTimer();
   startNotifPoll();
   switchView('profile');
 }
@@ -321,8 +266,6 @@ function buildComposerColorSwatches(){
 }
 
 function openComposer(){
-  if(secondsLeft() <= 0){ showAlert('خلصت الساعة بتاعتك النهاردة، اتقابلنا بكرة 🌙'); return; }
-  if(blogsLeft() <= 0){ showAlert('وصلت لحد الـ٧ مدونات المسموحة النهاردة'); return; }
   editingBlogId = null;
   selectedBlogColor = null;
   document.getElementById('composer-heading').textContent = 'مدونة فضفضلي جديدة';
@@ -391,8 +334,6 @@ async function publishBlog(){
   } else {
     const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor });
     if(error){ err.textContent = rpcErrMsg(error); return; }
-    me.blogs_used += 1;
-    renderUsageBar();
   }
 
   editingBlogId = null;
@@ -412,6 +353,7 @@ async function renderMyBlogs(){
   const list = document.getElementById('my-blogs-list');
   const { data } = await sb.rpc('list_blogs', { p_token: token, p_author_id: me.id });
   const mine = data || [];
+  updateBlogCountDisplay(mine.length);
   list.innerHTML = '';
   if(mine.length===0){ list.innerHTML = '<div class="empty-state">لسه معملتش أي مدونة فضفضلي، دوس على الزرار فوق وابدأ</div>'; return; }
   mine.forEach(b=> list.appendChild(renderBlogCard(b, me.id, true)));
@@ -544,8 +486,6 @@ async function renderFriendsGrid(){
 }
 
 async function openFriendBlogs(otherId, otherDisplayName){
-  if(secondsLeft() <= 0){ showAlert('خلصت الساعة بتاعتك النهاردة'); return; }
-
   const { data: blogs, error } = await sb.rpc('list_blogs', { p_token: token, p_author_id: otherId });
   if(error){ showAlert(rpcErrMsg(error)); return; }
 
