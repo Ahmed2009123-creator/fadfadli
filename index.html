@@ -21,6 +21,7 @@
     --ivory:#ede6d6;
     --muted:#9c93a8;
     --user-accent: var(--gold);
+    --sig-color:#d98fa0;
     --radius: 18px;
     --shadow: 0 20px 60px rgba(0,0,0,0.45);
   }
@@ -33,6 +34,7 @@
     --border-gold-strong: rgba(122,58,20,0.45);
     --ivory:#241d14;
     --muted:#6c6153;
+    --sig-color:#6e2a38;
     --shadow: 0 20px 50px rgba(80,60,20,0.15);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -747,20 +749,24 @@
             <div class="reader-title" style="text-align:center; font-size:26px;">ما هو موقع فضفضلي</div>
             <div class="reader-text" style="margin-top:18px; font-size:14.5px;">الموقع ده اتصمم لك مخصوص علشان تفضفض فيه براحتك.
 موقع فضفضلي هو موقع لكتابة المدونات وعمل ما يسمى بالفضفضة.
-صمم هذا الموقع بطريقة مدروسة لتتفادى معظم الأشياء التي توقعنا في المعاصي، فلا يوجد صور، ولا يوجد محادثة خاصة، ولا تستطيع أن تكلم أحدا إلا بمعرفة اسمه بالحرف الواحد، كي لا تضيع الوقت الذي ستُسأل عليه يوم القيامة.</div>
+صمم لك بكل حب.</div>
+            <div style="text-align:center; margin-top:16px; font-family:'Aref Ruqaa', serif; font-size:20px; color:var(--sig-color);">أحمد &amp; كنزي</div>
             <button class="btn" style="margin-top:26px;" onclick="introNext()">التالي</button>
           </div>
           <div id="intro-step2" style="display:none;">
-            <div class="reader-title" style="text-align:center; font-size:26px;">القوانين</div>
+            <div class="reader-title" style="text-align:center; font-size:26px;">آلية عمل الموقع</div>
             <div class="reader-text" style="margin-top:18px; font-size:14.5px; line-height:2.1;">
-              ١- ممنوع التفوه بألفاظ خارجة في المدونة<br>
-              ٢- لازم تستنى نص دقيقة بين كل مدونة والتانية<br>
-              ٣- لا تزعج أحدا والزم حدودك في موقعنا<br>
-              ٤- استمتع ولكن فيما يرضي الله
+              ١- تقدر تعمل مدونات غير محدودة وتكتب كل اللي في بالك<br>
+              ٢- لما تعمل نشر للمدونة هتظهر لكل الأصدقاء اللي انت ضايفهم<br>
+              ٣- تقدر من الإعدادات تغيّر ألوان مدوناتك وتغيّر وضع الموقع من الداكن للفاتح والعكس<br>
+              ٤- تقدر من الإعدادات تعمل حجب لشخص يفضل ضايفك بس ميشوفش مدوناتك<br>
+              ٥- تقدر من الإعدادات تعمل إلغاء صداقة لشخص وتتمحي من عنده تمامًا وميقدرش يوصلك غير بطلب صداقة وموافقة منك<br>
+              ٦- بيجيلك إشعار لما يحصل أي حاجة من الأصدقاء سواء حجب أو إلغاء صداقة أو حد شاف مدونتك أو عملها لايك
             </div>
+            <div style="text-align:center; margin-top:16px; font-family:'Aref Ruqaa', serif; font-size:19px; color:var(--sig-color);">استمتع وفضض</div>
             <label style="display:flex; align-items:center; gap:8px; margin-top:22px; font-size:13.5px; cursor:pointer;">
               <input type="checkbox" id="intro-agree-checkbox" onchange="introAgreeChanged(this.checked)" style="width:18px; height:18px; accent-color:var(--gold);">
-              أنا موافق على الشروط والقوانين
+              فهمت كل حاجة وجاهز لاستخدام الموقع
             </label>
             <button class="btn" id="intro-start-btn" style="margin-top:18px;" disabled onclick="introFinish()">ابدأ الفضفضة</button>
           </div>
