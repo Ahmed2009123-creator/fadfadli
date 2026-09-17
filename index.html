@@ -32,6 +32,8 @@
     --panel-strong: rgba(20,15,10,0.08);
     --border-gold: rgba(122,58,20,0.22);
     --border-gold-strong: rgba(122,58,20,0.45);
+    --gold:#8a6a2c;
+    --gold-bright:#71531f;
     --ivory:#241d14;
     --muted:#6c6153;
     --sig-color:#6e2a38;
@@ -326,10 +328,13 @@
     padding:14px 16px;
     margin-bottom:12px;
     cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease;
   }
+  .blog-card:active{ transform:scale(.985); }
   .blog-card .bh{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; gap:8px;}
   .blog-card .bt{font-weight:700; font-size:15px; color:var(--ivory); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .blog-card .bd{font-size:10.5px; color:var(--muted); flex-shrink:0;}
+  .blog-card .bd{font-size:10.5px; color:var(--muted); flex-shrink:0; display:flex; align-items:center; gap:5px;}
+  .blog-card .bd .dot{opacity:.5;}
   .blog-card .bp{font-size:12.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .blog-card .actions{display:flex; gap:14px; margin-top:8px; align-items:center; justify-content:space-between;}
   .like-badge{font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:4px;}
@@ -365,7 +370,8 @@
   .reader-body::-webkit-scrollbar{ display:none; }
   #composer-body::-webkit-scrollbar{ display:none; }
   .reader-title{ font-family:'Aref Ruqaa', serif; font-size:22px; color:var(--gold-bright); margin-bottom:4px; }
-  .reader-date{ font-size:11px; color:var(--muted); margin-bottom:16px; }
+  .reader-date{ font-size:11px; color:var(--muted); margin-bottom:16px; display:flex; align-items:center; gap:6px; }
+  .reader-date .dot{opacity:.5;}
   .reader-text{ font-size:15px; line-height:2; color:var(--ivory); white-space:pre-wrap; overflow-wrap:break-word; word-break:break-word; max-width:100%; }
   .reader-like{
     display:flex; align-items:center; gap:8px; margin-top:24px;
@@ -373,7 +379,19 @@
     padding:8px 16px; width:fit-content; cursor:pointer; color:var(--muted);
   }
   .reader-like.liked{ color:var(--wine-bright); border-color:rgba(168,70,90,0.5); }
-  .reader-like svg{width:17px; height:17px;}
+  .reader-like svg{width:17px; height:17px; transition:transform .25s cubic-bezier(.34,1.56,.64,1);}
+  .reader-like svg.pop{ animation:heartPop .4s ease; }
+  @keyframes heartPop{
+    0%{ transform:scale(1); }
+    35%{ transform:scale(1.4); }
+    60%{ transform:scale(.92); }
+    100%{ transform:scale(1); }
+  }
+
+  .avatar-badge{
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; font-family:'Aref Ruqaa', serif;
+  }
 
   mark.hl{background:none; padding:0 2px; border-radius:3px;}
 
@@ -523,7 +541,7 @@
         <form id="signup-form" style="display:none;" onsubmit="event.preventDefault(); doSignup();">
           <div class="field">
             <label>اسم مستخدم (فريد ومحدش استخدمه قبلك)</label>
-            <input id="signup-name" name="username" type="text" autocomplete="username" placeholder="مثال: Kenzy_Writes">
+            <input id="signup-name" name="username" type="text" autocomplete="username" maxlength="12" placeholder="مثال: Kenzy_Writes">
           </div>
           <div class="field">
             <label>الاسم الظاهر (Display Name)</label>
@@ -731,6 +749,7 @@
         </div>
         <div class="reader-body">
           <div class="reader-title" id="reader-title"></div>
+          <div class="filigree small"></div>
           <div class="reader-date" id="reader-date"></div>
           <div class="reader-text" id="reader-text"></div>
           <div class="reader-like" id="reader-like" onclick="toggleLikeInReader()">

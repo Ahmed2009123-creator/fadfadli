@@ -14,6 +14,11 @@ let editingBlogId = null;
 
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function stripHtml(html){ const d=document.createElement('div'); d.innerHTML=html; return d.textContent || ''; }
+function readingTimeLabel(bodyHtml){
+  const words = stripHtml(bodyHtml).trim().split(/\s+/).filter(Boolean).length;
+  const mins = Math.max(1, Math.round(words/130));
+  return mins + ' د قراءة';
+}
 function sanitizeHtml(html){
   if(typeof DOMPurify === 'undefined') return stripHtml(html); // احتياطي: لو المكتبة ماتحمّلتش، اعرض نص خام بس من غير أي HTML
   return DOMPurify.sanitize(html, {
@@ -24,6 +29,7 @@ function sanitizeHtml(html){
 function rpcErrMsg(error){
   const msg = (error && error.message) || '';
   if(msg.includes('username_taken')) return 'اسم المستخدم ده متاخد، جرب اسم تاني';
+  if(msg.includes('username_length')) return 'اسم المستخدم لازم يكون بين ٣ و١٢ حرف';
   if(msg.includes('invalid_credentials')) return 'اسم المستخدم أو كلمة المرور غلط';
   if(msg.includes('invalid_input')) return 'البيانات المدخلة مش صح';
   if(msg.includes('user_not_found')) return 'مفيش مستخدم بالاسم ده';
@@ -103,6 +109,7 @@ async function doSignup(){
   const err = document.getElementById('signup-error');
   err.textContent = '';
   if(!username || !pass){ err.textContent = 'لازم تكتب اسم المستخدم وكلمة المرور'; return; }
+  if(username.length < 3 || username.length > 12){ err.textContent = 'اسم المستخدم لازم يكون بين ٣ و١٢ حرف'; return; }
   if(pass.length < 6){ err.textContent = 'كلمة المرور لازم تكون ٦ حروف على الأقل'; return; }
 
   const { data, error } = await sb.rpc('signup_user', { p_username: username, p_password: pass, p_display_name: dn });
@@ -190,6 +197,7 @@ async function enterApp(){
   applyAccent(me.accent);
   document.getElementById('theme-toggle').checked = (me.theme === 'light');
   buildAccentSwatches();
+  updateMyAvatars();
 
   await Promise.all([renderMyBlogs(), renderFriendsGrid(), renderBlockList()]);
   startNotifPoll();
@@ -220,6 +228,16 @@ async function toggleTheme(isLight){
   await sb.rpc('update_theme_accent', { p_token: token, p_theme: me.theme, p_accent: me.accent });
 }
 function applyAccent(hex){ document.documentElement.style.setProperty('--user-accent', hex); }
+function avatarInitial(name){ return (name||'?').trim().charAt(0).toUpperCase() || '?'; }
+function updateMyAvatars(){
+  const letter = avatarInitial(me.display_name || me.username);
+  [document.getElementById('header-avatar'), document.getElementById('profile-avatar')].forEach(el=>{
+    if(!el) return;
+    el.textContent = letter;
+    el.classList.add('avatar-badge');
+    el.style.background = me.accent;
+  });
+}
 function buildAccentSwatches(){
   const wrap = document.getElementById('accent-swatches');
   wrap.innerHTML = '';
@@ -228,7 +246,7 @@ function buildAccentSwatches(){
     s.className = 'swatch' + (me.accent===hex ? ' active':'');
     s.style.background = hex;
     s.onclick = async ()=>{
-      me.accent = hex; applyAccent(hex); buildAccentSwatches();
+      me.accent = hex; applyAccent(hex); buildAccentSwatches(); updateMyAvatars();
       await sb.rpc('update_theme_accent', { p_token: token, p_theme: me.theme, p_accent: hex });
     };
     wrap.appendChild(s);
@@ -241,6 +259,7 @@ async function updateDisplayName(val){
   if(!val) return;
   me.display_name = val;
   document.getElementById('header-dn').textContent = val;
+  updateMyAvatars();
   await sb.rpc('update_display_name', { p_token: token, p_name: val });
 }
 
@@ -307,6 +326,15 @@ function toggleMarkSwatches(){
 function applyMarkColor(color){
   document.execCommand('styleWithCSS', false, true);
   document.execCommand('hiliteColor', false, color);
+  // من غير الجزء ده، اللون بيفضل ممتد مع أي كلام تاني تكتبه بعد الجزء المحدد
+  const sel = window.getSelection();
+  if(sel && sel.rangeCount){
+    const range = sel.getRangeAt(0);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('hiliteColor', false, 'transparent');
+  }
 }
 document.addEventListener('selectionchange', ()=>{
   const body = document.getElementById('composer-body');
@@ -367,7 +395,7 @@ function renderBlogCard(b, authorId, isMine){
   card.innerHTML = `
     <div class="bh">
       <span class="bt" style="font-family:${b.font}">${escapeHtml(b.title)}</span>
-      <span class="bd">${new Date(b.created_at).toLocaleDateString('ar-EG')}</span>
+      <span class="bd">${new Date(b.created_at).toLocaleDateString('ar-EG')} <span class="dot">·</span> ${readingTimeLabel(b.body)}</span>
     </div>
     <div class="bp">${escapeHtml(preview)}</div>
     <div class="actions">
@@ -400,7 +428,7 @@ function openBlogReader(b, authorId){
   document.getElementById('reader-title').style.fontFamily = b.font;
   document.getElementById('reader-text').innerHTML = sanitizeHtml(b.body);
   document.getElementById('reader-text').style.fontFamily = b.font;
-  document.getElementById('reader-date').textContent = new Date(b.created_at).toLocaleDateString('ar-EG');
+  document.getElementById('reader-date').innerHTML = `${new Date(b.created_at).toLocaleDateString('ar-EG')} <span class="dot">·</span> ${readingTimeLabel(b.body)}`;
   updateReaderLikeUI();
   document.getElementById('reader-overlay').classList.add('open');
   if(authorId !== me.id){
@@ -425,6 +453,12 @@ async function toggleLikeInReader(){
   readerBlog.liked_by_me = !!data;
   readerBlog.like_count += data ? 1 : -1;
   updateReaderLikeUI();
+  if(data){
+    const icon = document.getElementById('reader-like-icon');
+    icon.classList.remove('pop');
+    void icon.offsetWidth; // إعادة تشغيل الأنيميشن
+    icon.classList.add('pop');
+  }
   if(readerAuthorId === me.id) renderMyBlogs();
 }
 
@@ -479,7 +513,7 @@ async function renderFriendsGrid(){
 
     const card = document.createElement('div');
     card.className = 'friend-card';
-    card.innerHTML = `<div class="avatar">👤</div><div class="fn">${escapeHtml(f.display_name)}</div><div class="fu un-copy" onclick="event.stopPropagation(); copyDisplayedUsername(this)">@${escapeHtml(f.username)}</div>${tag}`;
+    card.innerHTML = `<div class="avatar avatar-badge" style="background:${f.accent || '#c9a66b'}">${avatarInitial(f.display_name)}</div><div class="fn">${escapeHtml(f.display_name)}</div><div class="fu un-copy" onclick="event.stopPropagation(); copyDisplayedUsername(this)">@${escapeHtml(f.username)}</div>${tag}`;
     if(f.status === 'accepted') card.onclick = ()=> openFriendBlogs(f.id, f.display_name);
     grid.appendChild(card);
   });
