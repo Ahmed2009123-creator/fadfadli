@@ -410,6 +410,16 @@
   .friend-card .fu{font-size:10.5px; color:var(--muted);}
   .pending-tag{font-size:9.5px; color:var(--gold); border:1px solid var(--border-gold); border-radius:20px; padding:1px 8px; display:inline-block; margin-top:5px;}
 
+  .segmented{
+    display:flex; background:var(--panel); border:1px solid var(--border-gold);
+    border-radius:12px; padding:4px; margin-bottom:12px; gap:4px;
+  }
+  .seg-btn{
+    flex:1; background:none; border:none; padding:9px 6px; border-radius:9px;
+    color:var(--muted); font-family:'Tajawal', sans-serif; font-size:13px; cursor:pointer;
+  }
+  .seg-btn.active{ background:var(--panel-strong); color:var(--gold-bright); font-weight:700; }
+
   .fab{
     position:absolute; left:18px; bottom:18px;
     width:52px; height:52px; border-radius:50%;
@@ -461,6 +471,9 @@
     display:none; align-items:flex-end; justify-content:center; z-index:20;
   }
   .overlay.open{display:flex;}
+  #reader-overlay{ z-index:25; }
+  #dialog-overlay{ z-index:30; }
+  #composer-overlay, #group-invite-picker-overlay, #group-invites-overlay, #delete-account-overlay{ z-index:22; }
   .overlay.center{ align-items:center; }
   .sheet-center{
     width:85%; max-width:340px;
@@ -598,16 +611,35 @@
         <div id="my-blogs-list"></div>
       </main>
 
-      <!-- ---- BLOGS (FRIENDS) VIEW ---- -->
+      <!-- ---- BLOGS (FRIENDS / GROUPS) VIEW ---- -->
       <main class="view" id="view-blogs" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div class="view-title">المدونات</div>
-          <button class="btn ghost" style="width:auto; padding:8px 14px;" onclick="openAddFriend()">+ إضافة صديق</button>
+        <div class="segmented">
+          <button class="seg-btn active" data-sub="friends" onclick="switchBlogsSub('friends')">الأصدقاء</button>
+          <button class="seg-btn" data-sub="groups" onclick="switchBlogsSub('groups')">الجروبات</button>
         </div>
-        <div class="view-sub">مدونات فضفضلي بتاعة أصحابك</div>
 
-        <div class="friend-grid" id="friends-grid"></div>
-        <div class="empty-state" id="friends-empty">ما من مدونات للأصدقاء حتى الآن</div>
+        <div id="blogs-sub-friends">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="view-title">الأصدقاء</div>
+            <button class="btn ghost" style="width:auto; padding:8px 14px;" onclick="openAddFriend()">+ إضافة صديق</button>
+          </div>
+          <div class="view-sub">مدونات فضفضلي بتاعة أصحابك</div>
+          <div class="friend-grid" id="friends-grid"></div>
+          <div class="empty-state" id="friends-empty">ما من مدونات للأصدقاء حتى الآن</div>
+        </div>
+
+        <div id="blogs-sub-groups" style="display:none;">
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button class="btn" style="width:auto; padding:9px 16px;" onclick="doCreateGroup()">+ إنشاء جروب</button>
+            <button class="btn ghost" style="width:auto; padding:9px 16px; position:relative;" onclick="openGroupInvites()">
+              تلقي الدعوات
+              <span class="notif-badge" id="group-invite-badge" style="position:absolute; top:-6px; left:-6px;">0</span>
+            </button>
+          </div>
+          <div class="view-sub" style="margin-top:10px;">الجروبات اللي انت عضو فيها</div>
+          <div class="friend-grid" id="groups-grid"></div>
+          <div class="empty-state" id="groups-empty">لسه معندكش أي جروب</div>
+        </div>
       </main>
 
       <!-- ---- SETTINGS VIEW ---- -->
@@ -651,6 +683,7 @@
         </div>
 
         <button class="btn ghost" onclick="confirmLogout()">تسجيل الخروج</button>
+        <button class="btn wine" style="margin-top:10px;" onclick="openDeleteAccount()">حذف الحساب نهائيًا</button>
       </main>
 
       <!-- ---- NOTIFICATIONS VIEW ---- -->
@@ -709,6 +742,7 @@
         <div class="field">
           <label>النص</label>
           <div id="composer-body" contenteditable="true" style="max-height:220px; overflow-y:auto; overflow-wrap:break-word; word-break:break-word; background:var(--panel-strong); border:1px solid var(--border-gold); border-radius:12px; padding:12px 14px; font-size:14.5px; line-height:1.9; outline:none; scrollbar-width:none;"></div>
+          <div style="font-size:11px; color:var(--muted); margin-top:6px;">نصيحة: اكتب الكلمة بين نجمتين *كده* تبقى سميكة، وبين خطين مايلين /كده/ تبقى مايلة — هتتحول لما تنشر المدونة</div>
           <div class="mark-row" id="mark-row">
             <button class="tb-btn" id="mark-trigger-btn" onmousedown="event.preventDefault();" onclick="toggleMarkSwatches()">🖊️ علّم على المقطع</button>
             <span id="mark-swatches" style="display:none; gap:8px; align-items:center;">
@@ -790,6 +824,68 @@
             <button class="btn" id="intro-start-btn" style="margin-top:18px;" disabled onclick="introFinish()">ابدأ الفضفضة</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ============ DELETE ACCOUNT SHEET ============ -->
+    <div class="overlay" id="delete-account-overlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h3>حذف الحساب نهائيًا</h3>
+          <button class="close-x" onclick="closeSheet('delete-account-overlay')">✕</button>
+        </div>
+        <div class="view-sub" style="color:var(--wine-bright);">الخطوة دي نهائية ومش هترجع — هيتمسح حسابك وكل مدوناتك وبياناتك تمامًا.</div>
+        <div class="field" style="margin-top:14px;">
+          <label>اكتب كلمة السر للتأكيد</label>
+          <div class="pass-wrap">
+            <input id="delacc-pass" type="password" autocomplete="current-password" placeholder="كلمة السر">
+            <button type="button" class="eye-btn" onclick="togglePass('delacc-pass')"><svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+        <button class="btn wine" onclick="confirmDeleteAccount()">احذف حسابي نهائيًا</button>
+        <div class="error-msg" id="delacc-error"></div>
+      </div>
+    </div>
+
+    <!-- ============ GROUP DETAIL (FULL SCREEN) ============ -->
+    <div class="overlay reader-overlay" id="group-overlay">
+      <div class="reader-sheet">
+        <div class="reader-head" style="justify-content:space-between; align-items:center;">
+          <input id="group-name-input" class="dn-input" style="text-align:right; font-size:17px; max-width:200px;" onchange="renameCurrentGroup(this.value)">
+          <button class="close-x" onclick="closeGroupOverlay()">✕</button>
+        </div>
+        <div class="reader-body">
+          <div style="display:flex; gap:8px; margin:6px 0 16px;">
+            <button class="btn" style="width:auto; padding:9px 14px; font-size:12.5px;" onclick="openGroupComposer()">📝 كتابة مدونة في الجروب</button>
+            <button class="btn ghost" style="width:auto; padding:9px 14px; font-size:12.5px;" onclick="openGroupInvitePicker()">+ إضافة صديق</button>
+          </div>
+          <div id="group-blogs-list"></div>
+          <div class="empty-state" id="group-blogs-empty">لسه مفيش مدونات في الجروب ده</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ GROUP INVITE PICKER SHEET ============ -->
+    <div class="overlay" id="group-invite-picker-overlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h3>إضافة صديق للجروب</h3>
+          <button class="close-x" onclick="closeSheet('group-invite-picker-overlay')">✕</button>
+        </div>
+        <div id="invitable-friends-list"></div>
+        <div class="empty-state" id="invitable-friends-empty">مفيش أصدقاء تقدر تدعوهم دلوقتي</div>
+      </div>
+    </div>
+
+    <!-- ============ GROUP INVITES INBOX SHEET ============ -->
+    <div class="overlay" id="group-invites-overlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h3>دعوات الجروبات</h3>
+          <button class="close-x" onclick="closeSheet('group-invites-overlay')">✕</button>
+        </div>
+        <div id="group-invites-list"></div>
+        <div class="empty-state" id="group-invites-empty">مفيش دعوات جديدة</div>
       </div>
     </div>
 

@@ -11,6 +11,7 @@ const ACCENTS = ['#c9a66b', '#a8465a', '#7fb0a0', '#8ea8d8', '#c98ea3'];
 let me = null;
 let token = null;
 let editingBlogId = null;
+let composingGroupId = null;
 
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function stripHtml(html){ const d=document.createElement('div'); d.innerHTML=html; return d.textContent || ''; }
@@ -37,8 +38,11 @@ function rpcErrMsg(error){
   if(msg.includes('already_exists')) return 'في طلب أو صداقة موجودة بالفعل';
   if(msg.includes('blocked')) return 'المستخدم ده حاجبك';
   if(msg.includes('not_friends')) return 'لازم تكونوا أصحاب الأول عشان تقدر تتفاعل مع مدوناته';
+  if(msg.includes('not_group_member')) return 'لازم تكون عضو في الجروب الأول';
+  if(msg.includes('already_member')) return 'الشخص ده عضو في الجروب بالفعل';
+  if(msg.includes('already_invited')) return 'اتبعتله دعوة للجروب ده بالفعل';
   if(msg.includes('cooldown')) return 'لازم تستنى نص دقيقة بين كل مدونة والتانية';
-  if(msg.includes('wrong_password')) return 'كلمة السر الحالية غلط';
+  if(msg.includes('wrong_password')) return 'كلمة السر غلط';
   return 'حصل خطأ، جرب تاني';
 }
 
@@ -146,6 +150,29 @@ async function doLogout(){
   document.getElementById('app-shell').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   showLogin();
+}
+
+function openDeleteAccount(){
+  document.getElementById('delacc-pass').value = '';
+  document.getElementById('delacc-error').textContent = '';
+  document.getElementById('delete-account-overlay').classList.add('open');
+}
+function confirmDeleteAccount(){
+  const pass = document.getElementById('delacc-pass').value;
+  const err = document.getElementById('delacc-error');
+  err.textContent = '';
+  if(!pass){ err.textContent = 'اكتب كلمة السر'; return; }
+  showConfirm('متأكد إنك عايز تحذف حسابك نهائيًا؟ الخطوة دي مفيش رجوع فيها.', async ()=>{
+    const { error } = await sb.rpc('delete_account', { p_token: token, p_password: pass });
+    if(error){ err.textContent = rpcErrMsg(error); return; }
+    closeSheet('delete-account-overlay');
+    stopNotifPoll();
+    localStorage.removeItem(TOKEN_KEY);
+    token = null; me = null;
+    document.getElementById('app-shell').style.display='none';
+    document.getElementById('auth-screen').style.display='flex';
+    showLogin();
+  });
 }
 
 async function changePassword(){
@@ -286,6 +313,7 @@ function buildComposerColorSwatches(){
 
 function openComposer(){
   editingBlogId = null;
+  composingGroupId = null;
   selectedBlogColor = null;
   document.getElementById('composer-heading').textContent = 'مدونة فضفضلي جديدة';
   document.getElementById('composer-submit-btn').textContent = 'نشر المدونة';
@@ -300,6 +328,7 @@ function openComposer(){
 
 function openEditComposer(blogId, title, bodyHtml, font, color){
   editingBlogId = blogId;
+  composingGroupId = null;
   selectedBlogColor = color || null;
   document.getElementById('composer-heading').textContent = 'تعديل المدونة';
   document.getElementById('composer-submit-btn').textContent = 'حفظ التعديل';
@@ -349,9 +378,41 @@ document.addEventListener('selectionchange', ()=>{
   }
 });
 
+/* ---------------- اختصارات تنسيق أثناء الكتابة: *كلمة* = سميك، /كلمة/ = مايل ---------------- */
+function applyMarkdownShortcuts(containerEl){
+  function walk(pattern, tagName){
+    const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    let n;
+    while(n = walker.nextNode()) textNodes.push(n);
+    textNodes.forEach(node=>{
+      const text = node.nodeValue;
+      pattern.lastIndex = 0;
+      if(!pattern.test(text)) return;
+      pattern.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let lastIndex = 0, m;
+      while((m = pattern.exec(text))){
+        if(m.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
+        const el = document.createElement(tagName);
+        el.textContent = m[1];
+        frag.appendChild(el);
+        lastIndex = pattern.lastIndex;
+      }
+      if(lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
+  walk(/\*([^*\n]+)\*/g, 'b');
+  walk(/\/([^\/\n]+)\//g, 'i');
+}
+
 async function publishBlog(){
   const title = document.getElementById('composer-title').value.trim();
-  const body = sanitizeHtml(document.getElementById('composer-body').innerHTML.trim());
+  const bodyEl = document.getElementById('composer-body');
+  const clone = bodyEl.cloneNode(true);
+  applyMarkdownShortcuts(clone);
+  const body = sanitizeHtml(clone.innerHTML.trim());
   const font = document.getElementById('composer-font').value;
   const err = document.getElementById('composer-error');
   if(!title || !body){ err.textContent = 'لازم تكتب عنوان ونص للمدونة'; return; }
@@ -360,13 +421,16 @@ async function publishBlog(){
     const { error } = await sb.rpc('edit_blog', { p_token: token, p_blog_id: editingBlogId, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor });
     if(error){ err.textContent = rpcErrMsg(error); return; }
   } else {
-    const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor });
+    const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor, p_group_id: composingGroupId });
     if(error){ err.textContent = rpcErrMsg(error); return; }
   }
 
+  const wasGroup = composingGroupId || currentGroupId;
   editingBlogId = null;
+  composingGroupId = null;
   closeSheet('composer-overlay');
-  renderMyBlogs();
+  if(wasGroup) renderGroupBlogs(wasGroup);
+  else renderMyBlogs();
 }
 
 function deleteBlog(blogId){
@@ -387,7 +451,7 @@ async function renderMyBlogs(){
   mine.forEach(b=> list.appendChild(renderBlogCard(b, me.id, true)));
 }
 
-function renderBlogCard(b, authorId, isMine){
+function renderBlogCard(b, authorId, isMine, authorLabel, groupId){
   const card = document.createElement('div');
   card.className = 'blog-card';
   card.style.borderInlineStartColor = b.color || b.author_accent || 'var(--user-accent)';
@@ -397,6 +461,7 @@ function renderBlogCard(b, authorId, isMine){
       <span class="bt" style="font-family:${b.font}">${escapeHtml(b.title)}</span>
       <span class="bd">${new Date(b.created_at).toLocaleDateString('ar-EG')} <span class="dot">·</span> ${readingTimeLabel(b.body)}</span>
     </div>
+    ${authorLabel ? `<div style="font-size:11px; color:var(--gold); margin-bottom:4px;">✍️ ${escapeHtml(authorLabel)}</div>` : ''}
     <div class="bp">${escapeHtml(preview)}</div>
     <div class="actions">
       <span class="like-badge">
@@ -409,7 +474,7 @@ function renderBlogCard(b, authorId, isMine){
       </div>` : ''}
     </div>`;
 
-  card.addEventListener('click', ()=> openBlogReader(b, authorId));
+  card.addEventListener('click', ()=> openBlogReader(b, authorId, groupId));
   if(isMine){
     const [editBtn, delBtn] = card.querySelectorAll('.icon-btn');
     editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openEditComposer(b.id, b.title, b.body, b.font, b.color); });
@@ -419,11 +484,11 @@ function renderBlogCard(b, authorId, isMine){
 }
 
 /* ---------------- BLOG READER (شاشة كاملة) ---------------- */
-let readerBlog = null, readerAuthorId = null;
-function openBlogReader(b, authorId){
+let readerBlog = null, readerAuthorId = null, readerGroupId = null;
+function openBlogReader(b, authorId, groupId){
   const friendSheet = document.getElementById('friend-blogs-overlay');
   if(friendSheet) friendSheet.classList.remove('open');
-  readerBlog = b; readerAuthorId = authorId;
+  readerBlog = b; readerAuthorId = authorId; readerGroupId = groupId || null;
   document.getElementById('reader-title').textContent = b.title;
   document.getElementById('reader-title').style.fontFamily = b.font;
   document.getElementById('reader-text').innerHTML = sanitizeHtml(b.body);
@@ -437,7 +502,7 @@ function openBlogReader(b, authorId){
 }
 function closeReader(){
   document.getElementById('reader-overlay').classList.remove('open');
-  readerBlog = null; readerAuthorId = null;
+  readerBlog = null; readerAuthorId = null; readerGroupId = null;
 }
 function updateReaderLikeUI(){
   const el = document.getElementById('reader-like');
@@ -459,7 +524,8 @@ async function toggleLikeInReader(){
     void icon.offsetWidth; // إعادة تشغيل الأنيميشن
     icon.classList.add('pop');
   }
-  if(readerAuthorId === me.id) renderMyBlogs();
+  if(readerAuthorId === me.id && !readerGroupId) renderMyBlogs();
+  if(readerGroupId) renderGroupBlogs(readerGroupId);
 }
 
 /* ---------------- FRIENDS / REQUESTS ---------------- */
@@ -540,6 +606,145 @@ async function openFriendBlogs(otherId, otherDisplayName){
   const list = overlay.querySelector('#friend-blogs-list');
   if(!blogs || blogs.length===0){ list.innerHTML = '<div class="empty-state">لسه مفيش مدونات</div>'; return; }
   [...blogs].forEach(b=> list.appendChild(renderBlogCard(b, otherId, false)));
+}
+
+/* ---------------- BLOGS/GROUPS TABS ---------------- */
+function switchBlogsSub(sub){
+  document.querySelectorAll('.seg-btn').forEach(b=> b.classList.toggle('active', b.dataset.sub === sub));
+  document.getElementById('blogs-sub-friends').style.display = sub==='friends' ? 'block' : 'none';
+  document.getElementById('blogs-sub-groups').style.display = sub==='groups' ? 'block' : 'none';
+  if(sub === 'groups'){ renderGroupsList(); refreshGroupInviteBadge(); }
+}
+
+/* ---------------- GROUPS ---------------- */
+let currentGroupId = null;
+
+async function doCreateGroup(){
+  const { data, error } = await sb.rpc('create_group', { p_token: token });
+  if(error){ showAlert(rpcErrMsg(error)); return; }
+  await renderGroupsList();
+  openGroupDetail(data.id, data.name);
+}
+
+async function renderGroupsList(){
+  const grid = document.getElementById('groups-grid');
+  const empty = document.getElementById('groups-empty');
+  const { data } = await sb.rpc('list_my_groups', { p_token: token });
+  const list = data || [];
+  grid.innerHTML = '';
+  empty.style.display = list.length ? 'none' : 'block';
+  list.forEach(g=>{
+    const card = document.createElement('div');
+    card.className = 'friend-card';
+    card.innerHTML = `<div class="avatar avatar-badge" style="background:var(--gold);">👥</div><div class="fn">${escapeHtml(g.name)}</div><div class="fu">${g.member_count} عضو</div>`;
+    card.onclick = ()=> openGroupDetail(g.id, g.name);
+    grid.appendChild(card);
+  });
+}
+
+function openGroupDetail(groupId, groupName){
+  currentGroupId = groupId;
+  document.getElementById('group-name-input').value = groupName;
+  document.getElementById('group-overlay').classList.add('open');
+  renderGroupBlogs(groupId);
+}
+function closeGroupOverlay(){
+  document.getElementById('group-overlay').classList.remove('open');
+  currentGroupId = null;
+}
+
+async function renameCurrentGroup(newName){
+  newName = newName.trim();
+  if(!newName || !currentGroupId) return;
+  const { error } = await sb.rpc('rename_group', { p_token: token, p_group_id: currentGroupId, p_name: newName });
+  if(error){ showAlert(rpcErrMsg(error)); return; }
+  renderGroupsList();
+}
+
+async function renderGroupBlogs(groupId){
+  const list = document.getElementById('group-blogs-list');
+  const empty = document.getElementById('group-blogs-empty');
+  const { data, error } = await sb.rpc('list_group_blogs', { p_token: token, p_group_id: groupId });
+  if(error){ showAlert(rpcErrMsg(error)); return; }
+  const blogs = data || [];
+  list.innerHTML = '';
+  empty.style.display = blogs.length ? 'none' : 'block';
+  blogs.forEach(b=>{
+    const card = renderBlogCard(b, b.author_id, b.author_id === me.id, b.author_id === me.id ? null : b.author_name, groupId);
+    list.appendChild(card);
+  });
+}
+
+function openGroupComposer(){
+  openComposer();
+  composingGroupId = currentGroupId;
+}
+
+async function openGroupInvitePicker(){
+  const { data, error } = await sb.rpc('list_group_invitable_friends', { p_token: token, p_group_id: currentGroupId });
+  if(error){ showAlert(rpcErrMsg(error)); return; }
+  const list = data || [];
+  const wrap = document.getElementById('invitable-friends-list');
+  const empty = document.getElementById('invitable-friends-empty');
+  wrap.innerHTML = '';
+  empty.style.display = list.length ? 'none' : 'block';
+  list.forEach(f=>{
+    const row = document.createElement('div');
+    row.className = 'row-item';
+    row.innerHTML = `<div><div class="rl">${escapeHtml(f.display_name)}</div><div class="rs">@${escapeHtml(f.username)}</div></div>
+      <button class="btn" style="width:auto; padding:7px 12px; font-size:12px;">ادعُ</button>`;
+    row.querySelector('button').onclick = async ()=>{
+      const { error: e2 } = await sb.rpc('invite_to_group', { p_token: token, p_group_id: currentGroupId, p_target_user_id: f.id });
+      if(e2){ showAlert(rpcErrMsg(e2)); return; }
+      row.remove();
+      showToast('اتبعتت الدعوة');
+    };
+    wrap.appendChild(row);
+  });
+  document.getElementById('group-invite-picker-overlay').classList.add('open');
+}
+
+async function refreshGroupInviteBadge(){
+  const { data } = await sb.rpc('count_group_invites', { p_token: token });
+  const badge = document.getElementById('group-invite-badge');
+  const n = data || 0;
+  badge.textContent = n > 9 ? '9+' : n;
+  badge.style.display = n > 0 ? 'flex' : 'none';
+}
+
+async function openGroupInvites(){
+  const { data } = await sb.rpc('list_group_invites', { p_token: token });
+  const list = data || [];
+  const wrap = document.getElementById('group-invites-list');
+  const empty = document.getElementById('group-invites-empty');
+  wrap.innerHTML = '';
+  empty.style.display = list.length ? 'none' : 'block';
+  list.forEach(inv=>{
+    const row = document.createElement('div');
+    row.className = 'notif-item';
+    row.innerHTML = `<div class="ni-ico">👥</div>
+      <div class="ni-body">
+        <div class="ni-txt">${escapeHtml(inv.inviter_name)} دعاك للانضمام لجروب "${escapeHtml(inv.group_name)}"</div>
+        <div class="ni-actions">
+          <button class="btn">قبول</button>
+          <button class="btn ghost">رفض</button>
+        </div>
+      </div>`;
+    const [acceptBtn, rejectBtn] = row.querySelectorAll('button');
+    acceptBtn.onclick = async ()=>{
+      await sb.rpc('respond_group_invite', { p_token: token, p_invite_id: inv.id, p_accept: true });
+      row.remove();
+      renderGroupsList();
+      refreshGroupInviteBadge();
+    };
+    rejectBtn.onclick = async ()=>{
+      await sb.rpc('respond_group_invite', { p_token: token, p_invite_id: inv.id, p_accept: false });
+      row.remove();
+      refreshGroupInviteBadge();
+    };
+    wrap.appendChild(row);
+  });
+  document.getElementById('group-invites-overlay').classList.add('open');
 }
 
 /* ---------------- BLOCKING ---------------- */
