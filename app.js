@@ -857,7 +857,7 @@ async function toggleBlock(otherId){
 }
 
 /* ---------------- NOTIFICATIONS ---------------- */
-const NOTIF_ICON = { accept:'🤝', reject:'🙅', block:'🚫', unblock:'🔓', unfriend:'💔', newblog:'📝', view:'👁️', like:'❤️', request:'➕', group_owner:'👑' };
+const NOTIF_ICON = { accept:'🤝', reject:'🙅', block:'🚫', unblock:'🔓', unfriend:'💔', newblog:'📝', view:'👁️', like:'❤️', request:'➕', group_owner:'👑', group_invite:'👥', group_deleted:'🗑️', group_left:'🚪', group_blog_deleted:'🗑️' };
 
 function groupNotifications(rows){
   const map = new Map();
