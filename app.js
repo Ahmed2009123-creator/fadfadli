@@ -41,6 +41,8 @@ function rpcErrMsg(error){
   if(msg.includes('not_group_member')) return 'لازم تكون عضو في الجروب الأول';
   if(msg.includes('already_member')) return 'الشخص ده عضو في الجروب بالفعل';
   if(msg.includes('already_invited')) return 'اتبعتله دعوة للجروب ده بالفعل';
+  if(msg.includes('owner_only')) return 'الحذف متاح لصاحب الجروب بس';
+  if(msg.includes('need_new_owner')) return 'لازم تختار مالك جديد الأول';
   if(msg.includes('cooldown')) return 'لازم تستنى نص دقيقة بين كل مدونة والتانية';
   if(msg.includes('wrong_password')) return 'كلمة السر غلط';
   return 'حصل خطأ، جرب تاني';
@@ -618,12 +620,13 @@ function switchBlogsSub(sub){
 
 /* ---------------- GROUPS ---------------- */
 let currentGroupId = null;
+let currentGroupIsOwner = false;
 
 async function doCreateGroup(){
   const { data, error } = await sb.rpc('create_group', { p_token: token });
   if(error){ showAlert(rpcErrMsg(error)); return; }
   await renderGroupsList();
-  openGroupDetail(data.id, data.name);
+  openGroupDetail(data.id, data.name, true);
 }
 
 async function renderGroupsList(){
@@ -637,20 +640,87 @@ async function renderGroupsList(){
     const card = document.createElement('div');
     card.className = 'friend-card';
     card.innerHTML = `<div class="avatar avatar-badge" style="background:var(--gold);">👥</div><div class="fn">${escapeHtml(g.name)}</div><div class="fu">${g.member_count} عضو</div>`;
-    card.onclick = ()=> openGroupDetail(g.id, g.name);
+    card.onclick = ()=> openGroupDetail(g.id, g.name, g.is_owner);
     grid.appendChild(card);
   });
 }
 
-function openGroupDetail(groupId, groupName){
+function openGroupDetail(groupId, groupName, isOwner){
   currentGroupId = groupId;
+  currentGroupIsOwner = !!isOwner;
   document.getElementById('group-name-input').value = groupName;
+  document.getElementById('group-menu-delete').style.display = currentGroupIsOwner ? 'block' : 'none';
+  document.getElementById('group-menu').style.display = 'none';
   document.getElementById('group-overlay').classList.add('open');
   renderGroupBlogs(groupId);
 }
 function closeGroupOverlay(){
   document.getElementById('group-overlay').classList.remove('open');
+  document.getElementById('group-menu').style.display = 'none';
   currentGroupId = null;
+  currentGroupIsOwner = false;
+}
+function toggleGroupMenu(){
+  const menu = document.getElementById('group-menu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function menuDeleteGroup(){
+  document.getElementById('group-menu').style.display = 'none';
+  if(!currentGroupIsOwner) return;
+  showConfirm('متأكد إنك عايز تحذف الجروب ده نهائيًا؟ هتتمسح كل مدوناته كمان.', async ()=>{
+    const { error } = await sb.rpc('delete_group', { p_token: token, p_group_id: currentGroupId });
+    if(error){ showAlert(rpcErrMsg(error)); return; }
+    closeGroupOverlay();
+    renderGroupsList();
+  });
+}
+
+async function menuLeaveGroup(){
+  document.getElementById('group-menu').style.display = 'none';
+  if(!currentGroupIsOwner){
+    showConfirm('متأكد إنك عايز تخرج من الجروب؟', async ()=>{
+      await sb.rpc('leave_group', { p_token: token, p_group_id: currentGroupId });
+      closeGroupOverlay();
+      renderGroupsList();
+    });
+    return;
+  }
+  const { data } = await sb.rpc('list_group_members', { p_token: token, p_group_id: currentGroupId });
+  const others = (data || []).filter(m => m.id !== me.id);
+  if(others.length === 0){
+    showConfirm('انت لوحدك في الجروب ده، لو خرجت هيتم حذفه نهائيًا. متأكد؟', async ()=>{
+      await sb.rpc('leave_group', { p_token: token, p_group_id: currentGroupId });
+      closeGroupOverlay();
+      renderGroupsList();
+    });
+    return;
+  }
+  showDialogHTML('إنت مالك الجروب ده — تحب تعمل إيه قبل ما تخرج؟', [
+    { label:'إلغاء', cls:'ghost', action: closeDialog },
+    { label:'حذف الجروب', cls:'wine', action: ()=>{ closeDialog(); menuDeleteGroup(); } },
+    { label:'نقل الملكية والخروج', cls:'', action: ()=>{ closeDialog(); openTransferOwner(others); } }
+  ]);
+}
+
+function openTransferOwner(members){
+  const wrap = document.getElementById('transfer-owner-list');
+  wrap.innerHTML = '';
+  members.forEach(m=>{
+    const row = document.createElement('div');
+    row.className = 'row-item';
+    row.innerHTML = `<div><div class="rl">${escapeHtml(m.display_name)}</div><div class="rs">@${escapeHtml(m.username)}</div></div>
+      <button class="btn" style="width:auto; padding:7px 12px; font-size:12px;">اختار ده</button>`;
+    row.querySelector('button').onclick = async ()=>{
+      const { error } = await sb.rpc('leave_group', { p_token: token, p_group_id: currentGroupId, p_new_owner_id: m.id });
+      if(error){ showAlert(rpcErrMsg(error)); return; }
+      closeSheet('transfer-owner-overlay');
+      closeGroupOverlay();
+      renderGroupsList();
+    };
+    wrap.appendChild(row);
+  });
+  document.getElementById('transfer-owner-overlay').classList.add('open');
 }
 
 async function renameCurrentGroup(newName){
@@ -787,7 +857,7 @@ async function toggleBlock(otherId){
 }
 
 /* ---------------- NOTIFICATIONS ---------------- */
-const NOTIF_ICON = { accept:'🤝', reject:'🙅', block:'🚫', unblock:'🔓', unfriend:'💔', newblog:'📝', view:'👁️', like:'❤️', request:'➕' };
+const NOTIF_ICON = { accept:'🤝', reject:'🙅', block:'🚫', unblock:'🔓', unfriend:'💔', newblog:'📝', view:'👁️', like:'❤️', request:'➕', group_owner:'👑' };
 
 function groupNotifications(rows){
   const map = new Map();

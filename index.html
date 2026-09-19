@@ -481,8 +481,8 @@
     border-radius:18px; padding:22px; text-align:center;
   }
   .dialog-message{ font-size:14px; line-height:1.8; margin-bottom:18px; white-space:pre-wrap; }
-  .dialog-buttons{ display:flex; gap:10px; }
-  .dialog-buttons .btn{ flex:1; }
+  .dialog-buttons{ display:flex; gap:8px; flex-wrap:wrap; }
+  .dialog-buttons .btn{ flex:1 1 auto; min-width:90px; }
   .sheet{
     width:100%; max-height:88%; overflow-y:auto;
     background:var(--ink-2); border:1px solid var(--border-gold);
@@ -491,6 +491,14 @@
   .sheet-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
   .sheet-head h3{margin:0; font-family:'Aref Ruqaa', serif; font-size:20px; color:var(--gold-bright);}
   .close-x{background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer;}
+  .menu-item{
+    display:block; width:100%; text-align:right; background:none; border:none;
+    color:var(--ivory); font-family:'Tajawal', sans-serif; font-size:13.5px;
+    padding:12px 14px; cursor:pointer; border-bottom:1px solid var(--border-gold);
+  }
+  .menu-item:last-child{ border-bottom:none; }
+  .menu-item.danger{ color:var(--wine-bright); }
+  .menu-item:active{ background:var(--panel-strong); }
   .toolbar{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center;}
   .tb-btn{
     border:1px solid var(--border-gold); background:var(--panel-strong); color:var(--ivory);
@@ -850,9 +858,16 @@
     <!-- ============ GROUP DETAIL (FULL SCREEN) ============ -->
     <div class="overlay reader-overlay" id="group-overlay">
       <div class="reader-sheet">
-        <div class="reader-head" style="justify-content:space-between; align-items:center;">
-          <input id="group-name-input" class="dn-input" style="text-align:right; font-size:17px; max-width:200px;" onchange="renameCurrentGroup(this.value)">
-          <button class="close-x" onclick="closeGroupOverlay()">✕</button>
+        <div class="reader-head" style="justify-content:space-between; align-items:center; position:relative;">
+          <input id="group-name-input" class="dn-input" style="text-align:right; font-size:17px; max-width:180px;" onchange="renameCurrentGroup(this.value)">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="close-x" onclick="toggleGroupMenu()">⋮</button>
+            <button class="close-x" onclick="closeGroupOverlay()">✕</button>
+          </div>
+          <div id="group-menu" style="display:none; position:absolute; top:44px; left:16px; background:var(--ink-2); border:1px solid var(--border-gold); border-radius:12px; overflow:hidden; z-index:5; min-width:160px;">
+            <button class="menu-item danger" id="group-menu-delete" onclick="menuDeleteGroup()">🗑️ حذف الجروب</button>
+            <button class="menu-item" onclick="menuLeaveGroup()">🚪 الخروج من الجروب</button>
+          </div>
         </div>
         <div class="reader-body">
           <div style="display:flex; gap:8px; margin:6px 0 16px;">
@@ -862,6 +877,18 @@
           <div id="group-blogs-list"></div>
           <div class="empty-state" id="group-blogs-empty">لسه مفيش مدونات في الجروب ده</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ============ TRANSFER OWNERSHIP SHEET ============ -->
+    <div class="overlay" id="transfer-owner-overlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h3>اختار مالك جديد</h3>
+          <button class="close-x" onclick="closeSheet('transfer-owner-overlay')">✕</button>
+        </div>
+        <div class="view-sub">هتخرج من الجروب على طول بعد ما تختار</div>
+        <div id="transfer-owner-list"></div>
       </div>
     </div>
 
