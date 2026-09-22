@@ -527,6 +527,60 @@
   }
 
   ::-webkit-scrollbar{width:0px;}
+
+  /* =========================================================
+     تجاوب الشاشات — نفس الألوان والخطوط والزراير بالظبط،
+     بس تقسيمة الصفحة بتتغيّر حسب حجم الشاشة (موبايل / تابلت / كمبيوتر)
+     ========================================================= */
+
+  /* ---- تابلت ---- */
+  @media (min-width: 641px) and (max-width: 1023px){
+    body{ padding:32px; }
+    .device{ max-width:640px; height:min(880px, 94vh); }
+    .friend-grid{ grid-template-columns: repeat(3, 1fr); }
+    .sheet{ max-width:520px; margin:0 auto; border-radius:22px; }
+    .glass-card{ max-width:400px; margin:0 auto; width:100%; }
+  }
+
+  /* ---- كمبيوتر / شاشات عريضة ---- */
+  @media (min-width: 1024px){
+    body{ padding:44px; }
+    .device{ max-width:1000px; height:min(860px, 90vh); }
+
+    /* بار التنقل بيبقى فوق زي موقع كمبيوتر عادي بدل تحت زي تطبيق موبايل */
+    header.top{ order:0; }
+    nav.bottom{
+      order:1;
+      justify-content:flex-start;
+      gap:8px;
+      padding:14px 28px;
+      border-top:none;
+      border-bottom:1px solid var(--border-gold);
+    }
+    nav.bottom button{
+      flex-direction:row;
+      gap:8px;
+      font-size:13px;
+      padding:9px 18px;
+      border-radius:10px;
+    }
+    nav.bottom button svg{ width:19px; height:19px; }
+    nav.bottom button.active::before{ display:none; }
+    nav.bottom button.active{ background:var(--panel-strong); }
+    .usage-bar{ order:2; padding-inline:28px; }
+    main.view{ order:3; padding-inline:28px; }
+
+    header.top .filigree{ display:none; }
+
+    .friend-grid{ grid-template-columns: repeat(4, 1fr); }
+
+    /* عرض المحتوى مش بيتمطط لعرض الشاشة كله عشان يفضل مريح للقراءة */
+    .reader-body{ max-width:720px; margin:0 auto; width:100%; }
+    #composer-body{ max-width:100%; }
+    .sheet{ max-width:480px; margin:0 auto; border-radius:22px; }
+    .sheet-center{ max-width:400px; }
+    .glass-card{ max-width:380px; margin:0 auto; width:100%; }
+  }
 </style>
 </head>
 <body>
