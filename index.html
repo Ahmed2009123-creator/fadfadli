@@ -567,7 +567,19 @@
     nav.bottom button svg{ width:19px; height:19px; }
     nav.bottom button.active::before{ display:none; }
     nav.bottom button.active{ background:var(--panel-strong); }
-    .usage-bar{ order:2; padding-inline:28px; }
+    .usage-bar{
+      order:2;
+      padding:0; margin:0; gap:0;
+      background:var(--panel);
+      border-bottom:1px solid var(--border-gold);
+    }
+    .usage-pill{
+      border-radius:0;
+      border:none;
+      background:none;
+      justify-content:flex-start;
+      padding:12px 28px;
+    }
     main.view{ order:3; padding-inline:28px; }
 
     header.top .filigree{ display:none; }
