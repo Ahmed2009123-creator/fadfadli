@@ -410,6 +410,20 @@
   .friend-card .fu{font-size:10.5px; color:var(--muted);}
   .pending-tag{font-size:9.5px; color:var(--gold); border:1px solid var(--border-gold); border-radius:20px; padding:1px 8px; display:inline-block; margin-top:5px;}
 
+  .search-input{
+    width:100%; background:var(--panel-strong); border:1px solid var(--border-gold);
+    border-radius:12px; padding:10px 14px; color:var(--ivory); font-family:'Tajawal', sans-serif;
+    font-size:13px; outline:none; margin-bottom:12px;
+  }
+  .role-badge{
+    font-size:9px; font-weight:800; padding:2px 8px; border-radius:20px; margin-inline-start:6px;
+    color:#0f2a1a; background:linear-gradient(135deg, #7fe6b0, #8ecfff);
+    box-shadow:0 0 8px rgba(142,207,255,0.6);
+  }
+  .hidden-tag{
+    font-size:10.5px; color:var(--wine-bright); margin-bottom:6px; display:flex; align-items:center; gap:5px;
+  }
+
   .segmented{
     display:flex; background:var(--panel); border:1px solid var(--border-gold);
     border-radius:12px; padding:4px; margin-bottom:12px; gap:4px;
@@ -704,6 +718,7 @@
             <button class="btn ghost" style="width:auto; padding:8px 14px;" onclick="openAddFriend()">+ إضافة صديق</button>
           </div>
           <div class="view-sub">مدونات فضفضلي بتاعة أصحابك</div>
+          <input class="search-input" id="friends-search" placeholder="دور بالاسم..." oninput="renderFriendsGrid(true)">
           <div class="friend-grid" id="friends-grid"></div>
           <div class="empty-state" id="friends-empty">ما من مدونات للأصدقاء حتى الآن</div>
         </div>
@@ -931,8 +946,9 @@
     <div class="overlay reader-overlay" id="group-overlay">
       <div class="reader-sheet">
         <div class="reader-head" style="justify-content:space-between; align-items:center; position:relative;">
-          <input id="group-name-input" class="dn-input" style="text-align:right; font-size:17px; max-width:180px;" onchange="renameCurrentGroup(this.value)">
+          <input id="group-name-input" class="dn-input" style="text-align:right; font-size:17px; max-width:150px;" onchange="renameCurrentGroup(this.value)">
           <div style="display:flex; align-items:center; gap:6px;">
+            <button class="close-x" onclick="openGroupMembers()" title="الأعضاء">👥</button>
             <button class="close-x" onclick="toggleGroupMenu()">⋮</button>
             <button class="close-x" onclick="closeGroupOverlay()">✕</button>
           </div>
@@ -942,9 +958,14 @@
           </div>
         </div>
         <div class="reader-body">
-          <div style="display:flex; gap:8px; margin:6px 0 16px;">
+          <div style="display:flex; gap:8px; margin:6px 0 12px; flex-wrap:wrap;">
             <button class="btn" style="width:auto; padding:9px 14px; font-size:12.5px;" onclick="openGroupComposer()">📝 كتابة مدونة في الجروب</button>
             <button class="btn ghost" style="width:auto; padding:9px 14px; font-size:12.5px;" onclick="openGroupInvitePicker()">+ إضافة صديق</button>
+            <button class="btn ghost" style="width:auto; padding:9px 14px; font-size:12.5px;" onclick="openGroupFilterPicker()">🔎 تصفية حسب عضو</button>
+          </div>
+          <div id="group-filter-chip" style="display:none; align-items:center; gap:8px; margin-bottom:12px;">
+            <span class="pending-tag" id="group-filter-chip-text"></span>
+            <button class="notif-del" onclick="clearGroupFilter()" title="إلغاء الفلتر"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>
           </div>
           <div id="group-blogs-list"></div>
           <div class="empty-state" id="group-blogs-empty">لسه مفيش مدونات في الجروب ده</div>
@@ -960,7 +981,32 @@
           <button class="close-x" onclick="closeSheet('transfer-owner-overlay')">✕</button>
         </div>
         <div class="view-sub">هتخرج من الجروب على طول بعد ما تختار</div>
+        <input class="search-input" id="transfer-owner-search" placeholder="دور بالاسم..." oninput="renderTransferOwnerList()">
         <div id="transfer-owner-list"></div>
+      </div>
+    </div>
+
+    <!-- ============ GROUP MEMBERS SHEET ============ -->
+    <div class="overlay" id="group-members-overlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h3>أعضاء الجروب</h3>
+          <button class="close-x" onclick="closeSheet('group-members-overlay')">✕</button>
+        </div>
+        <input class="search-input" id="group-members-search" placeholder="دور بالاسم..." oninput="renderGroupMembersList()">
+        <div id="group-members-list"></div>
+      </div>
+    </div>
+
+    <!-- ============ GROUP FILTER-BY-MEMBER SHEET ============ -->
+    <div class="overlay" id="group-filter-overlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <h3>تصفية حسب عضو</h3>
+          <button class="close-x" onclick="closeSheet('group-filter-overlay')">✕</button>
+        </div>
+        <input class="search-input" id="group-filter-search" placeholder="دور بالاسم..." oninput="renderGroupFilterList()">
+        <div id="group-filter-list"></div>
       </div>
     </div>
 
@@ -971,6 +1017,7 @@
           <h3>إضافة صديق للجروب</h3>
           <button class="close-x" onclick="closeSheet('group-invite-picker-overlay')">✕</button>
         </div>
+        <input class="search-input" id="invitable-friends-search" placeholder="دور بالاسم..." oninput="renderInvitablePickerList()">
         <div id="invitable-friends-list"></div>
         <div class="empty-state" id="invitable-friends-empty">مفيش أصدقاء تقدر تدعوهم دلوقتي</div>
       </div>

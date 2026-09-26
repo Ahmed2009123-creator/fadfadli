@@ -419,11 +419,25 @@ async function publishBlog(){
   const err = document.getElementById('composer-error');
   if(!title || !body){ err.textContent = 'لازم تكتب عنوان ونص للمدونة'; return; }
 
+  if(editingBlogId || !composingGroupId){
+    await submitBlog(title, body, font, false);
+    return;
+  }
+
+  showDialogHTML('تحب تنشر المدونة دي فين؟', [
+    { label:'إلغاء', cls:'ghost', action: closeDialog },
+    { label:'في الجروب بس', cls:'', action: ()=>{ closeDialog(); submitBlog(title, body, font, false); } },
+    { label:'في الجروب وحسابك كمان', cls:'', action: ()=>{ closeDialog(); submitBlog(title, body, font, true); } }
+  ]);
+}
+
+async function submitBlog(title, body, font, alsoPersonal){
+  const err = document.getElementById('composer-error');
   if(editingBlogId){
     const { error } = await sb.rpc('edit_blog', { p_token: token, p_blog_id: editingBlogId, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor });
     if(error){ err.textContent = rpcErrMsg(error); return; }
   } else {
-    const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor, p_group_id: composingGroupId });
+    const { error } = await sb.rpc('publish_blog', { p_token: token, p_title: title, p_body: body, p_font: font, p_color: selectedBlogColor, p_group_id: composingGroupId, p_also_personal: alsoPersonal });
     if(error){ err.textContent = rpcErrMsg(error); return; }
   }
 
@@ -453,36 +467,50 @@ async function renderMyBlogs(){
   mine.forEach(b=> list.appendChild(renderBlogCard(b, me.id, true)));
 }
 
-function renderBlogCard(b, authorId, isMine, authorLabel, groupId){
+function renderBlogCard(b, authorId, isMine, authorLabel, groupId, canToggleHide){
   const card = document.createElement('div');
   card.className = 'blog-card';
   card.style.borderInlineStartColor = b.color || b.author_accent || 'var(--user-accent)';
   const preview = stripHtml(b.body).slice(0, 90);
+  const hiddenTag = b.hidden ? `<div class="hidden-tag">🚫 الأونر خفى المدونة دي عن الظهور</div>` : '';
   card.innerHTML = `
     <div class="bh">
       <span class="bt" style="font-family:${b.font}">${escapeHtml(b.title)}</span>
       <span class="bd">${new Date(b.created_at).toLocaleDateString('ar-EG')} <span class="dot">·</span> ${readingTimeLabel(b.body)}</span>
     </div>
     ${authorLabel ? `<div style="font-size:11px; color:var(--gold); margin-bottom:4px;">✍️ ${escapeHtml(authorLabel)}</div>` : ''}
+    ${hiddenTag}
     <div class="bp">${escapeHtml(preview)}</div>
     <div class="actions">
       <span class="like-badge">
         <svg viewBox="0 0 24 24" fill="${b.liked_by_me?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>
         ${b.like_count}
       </span>
-      ${isMine ? `<div class="card-icon-btns">
-        <button class="icon-btn" title="تعديل"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
-        <button class="icon-btn danger" title="حذف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
-      </div>` : ''}
+      <div class="card-icon-btns">
+        ${canToggleHide ? `<button class="icon-btn" title="${b.hidden?'إظهار':'حجب'}">${b.hidden ? '👁️' : '🙈'}</button>` : ''}
+        ${isMine ? `<button class="icon-btn" title="تعديل"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+        <button class="icon-btn danger" title="حذف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>` : ''}
+      </div>
     </div>`;
 
   card.addEventListener('click', ()=> openBlogReader(b, authorId, groupId));
+  const icons = card.querySelectorAll('.icon-btn');
+  let idx = 0;
+  if(canToggleHide){
+    icons[idx].addEventListener('click', (e)=>{ e.stopPropagation(); toggleGroupBlogHidden(b.id, groupId); });
+    idx++;
+  }
   if(isMine){
-    const [editBtn, delBtn] = card.querySelectorAll('.icon-btn');
-    editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); openEditComposer(b.id, b.title, b.body, b.font, b.color); });
-    delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteBlog(b.id); });
+    icons[idx].addEventListener('click', (e)=>{ e.stopPropagation(); openEditComposer(b.id, b.title, b.body, b.font, b.color); });
+    icons[idx+1].addEventListener('click', (e)=>{ e.stopPropagation(); deleteBlog(b.id); });
   }
   return card;
+}
+
+async function toggleGroupBlogHidden(blogId, groupId){
+  const { error } = await sb.rpc('toggle_group_blog_hidden', { p_token: token, p_blog_id: blogId });
+  if(error){ showAlert(rpcErrMsg(error)); return; }
+  renderGroupBlogs(groupId);
 }
 
 /* ---------------- BLOG READER (شاشة كاملة) ---------------- */
@@ -563,11 +591,15 @@ async function rejectFriendRequest(otherId){
   refreshUnreadBadge();
 }
 
-async function renderFriendsGrid(){
+async function renderFriendsGrid(skipFetch){
+  if(!skipFetch){
+    const { data } = await sb.rpc('list_friends', { p_token: token });
+    lastFriendsData = data || [];
+  }
   const grid = document.getElementById('friends-grid');
   const empty = document.getElementById('friends-empty');
-  const { data } = await sb.rpc('list_friends', { p_token: token });
-  const list = data || [];
+  const q = document.getElementById('friends-search').value.trim().toLowerCase();
+  const list = lastFriendsData.filter(f => !q || f.display_name.toLowerCase().includes(q) || f.username.toLowerCase().includes(q));
   grid.innerHTML = '';
   empty.style.display = list.length ? 'none' : 'block';
 
@@ -621,6 +653,11 @@ function switchBlogsSub(sub){
 /* ---------------- GROUPS ---------------- */
 let currentGroupId = null;
 let currentGroupIsOwner = false;
+let lastFriendsData = [];
+let lastInvitableData = [];
+let lastTransferMembers = [];
+let lastGroupMembersData = [];
+let lastGroupFilterData = [];
 
 async function doCreateGroup(){
   const { data, error } = await sb.rpc('create_group', { p_token: token });
@@ -648,6 +685,9 @@ async function renderGroupsList(){
 function openGroupDetail(groupId, groupName, isOwner){
   currentGroupId = groupId;
   currentGroupIsOwner = !!isOwner;
+  currentGroupFilterAuthor = null;
+  currentGroupFilterName = null;
+  document.getElementById('group-filter-chip').style.display = 'none';
   document.getElementById('group-name-input').value = groupName;
   document.getElementById('group-menu-delete').style.display = currentGroupIsOwner ? 'block' : 'none';
   document.getElementById('group-menu').style.display = 'none';
@@ -676,13 +716,22 @@ function menuDeleteGroup(){
   });
 }
 
+function askKeepOrDeleteBlogs(promptText, onChoice){
+  showDialogHTML(promptText, [
+    { label:'سيب المدونات', cls:'ghost', action: ()=>{ closeDialog(); onChoice(false); } },
+    { label:'احذف المدونات', cls:'wine', action: ()=>{ closeDialog(); onChoice(true); } }
+  ]);
+}
+
 async function menuLeaveGroup(){
   document.getElementById('group-menu').style.display = 'none';
   if(!currentGroupIsOwner){
-    showConfirm('متأكد إنك عايز تخرج من الجروب؟', async ()=>{
-      await sb.rpc('leave_group', { p_token: token, p_group_id: currentGroupId });
-      closeGroupOverlay();
-      renderGroupsList();
+    showConfirm('متأكد إنك عايز تخرج من الجروب؟', ()=>{
+      askKeepOrDeleteBlogs('تحب تسيب مدوناتك في الجروب ولا تحذفها؟', async (deleteBlogs)=>{
+        await sb.rpc('leave_group', { p_token: token, p_group_id: currentGroupId, p_delete_my_blogs: deleteBlogs });
+        closeGroupOverlay();
+        renderGroupsList();
+      });
     });
     return;
   }
@@ -704,9 +753,17 @@ async function menuLeaveGroup(){
 }
 
 function openTransferOwner(members){
+  lastTransferMembers = members;
+  document.getElementById('transfer-owner-search').value = '';
+  renderTransferOwnerList();
+  document.getElementById('transfer-owner-overlay').classList.add('open');
+}
+function renderTransferOwnerList(){
+  const q = document.getElementById('transfer-owner-search').value.trim().toLowerCase();
+  const list = lastTransferMembers.filter(m => !q || m.display_name.toLowerCase().includes(q) || m.username.toLowerCase().includes(q));
   const wrap = document.getElementById('transfer-owner-list');
   wrap.innerHTML = '';
-  members.forEach(m=>{
+  list.forEach(m=>{
     const row = document.createElement('div');
     row.className = 'row-item';
     row.innerHTML = `<div><div class="rl">${escapeHtml(m.display_name)}</div><div class="rs">@${escapeHtml(m.username)}</div></div>
@@ -720,7 +777,61 @@ function openTransferOwner(members){
     };
     wrap.appendChild(row);
   });
-  document.getElementById('transfer-owner-overlay').classList.add('open');
+}
+
+async function openGroupMembers(){
+  const { data, error } = await sb.rpc('list_group_members', { p_token: token, p_group_id: currentGroupId });
+  if(error){ showAlert(rpcErrMsg(error)); return; }
+  lastGroupMembersData = data || [];
+  document.getElementById('group-members-search').value = '';
+  renderGroupMembersList();
+  document.getElementById('group-members-overlay').classList.add('open');
+}
+
+function renderGroupMembersList(){
+  const q = document.getElementById('group-members-search').value.trim().toLowerCase();
+  const list = lastGroupMembersData.filter(m => !q || m.display_name.toLowerCase().includes(q) || m.username.toLowerCase().includes(q));
+  const wrap = document.getElementById('group-members-list');
+  wrap.innerHTML = '';
+  list.forEach(m=>{
+    let friendBtn = '';
+    if(m.friend_status === 'none') friendBtn = `<button class="btn" style="width:auto; padding:6px 10px; font-size:11px;">إضافة صديق</button>`;
+    else if(m.friend_status === 'pending_out') friendBtn = `<span class="pending-tag">بانتظار الموافقة</span>`;
+    else if(m.friend_status === 'pending_in') friendBtn = `<span class="pending-tag">بعتلك طلب</span>`;
+    else if(m.friend_status === 'accepted') friendBtn = `<span class="pending-tag">أصدقاء</span>`;
+
+    const kickBtn = (currentGroupIsOwner && !m.is_me) ? `<button class="icon-btn danger" title="إخراج" style="margin-inline-start:6px;">🚪</button>` : '';
+
+    const row = document.createElement('div');
+    row.className = 'row-item';
+    row.innerHTML = `<div><div class="rl">${escapeHtml(m.display_name)}${m.is_owner ? '<span class="role-badge">مشرف</span>' : ''}</div><div class="rs">@${escapeHtml(m.username)}</div></div>
+      <div style="display:flex; align-items:center;">${friendBtn}${kickBtn}</div>`;
+
+    if(m.friend_status === 'none'){
+      row.querySelector('.btn').onclick = async ()=>{
+        const { error: e2 } = await sb.rpc('send_friend_request', { p_token: token, p_target_username: m.username });
+        if(e2){ showAlert(rpcErrMsg(e2)); return; }
+        m.friend_status = 'pending_out';
+        renderGroupMembersList();
+      };
+    }
+    if(currentGroupIsOwner && !m.is_me){
+      row.querySelector('.icon-btn').onclick = ()=> kickMember(m.id, m.display_name);
+    }
+    wrap.appendChild(row);
+  });
+}
+
+function kickMember(memberId, memberName){
+  showConfirm(`متأكد إنك عايز تطرد ${memberName} من الجروب؟`, ()=>{
+    askKeepOrDeleteBlogs('تحب تسيب مدوناته في الجروب ولا تحذفها؟', async (deleteBlogs)=>{
+      const { error } = await sb.rpc('kick_member', { p_token: token, p_group_id: currentGroupId, p_target_user_id: memberId, p_delete_blogs: deleteBlogs });
+      if(error){ showAlert(rpcErrMsg(error)); return; }
+      lastGroupMembersData = lastGroupMembersData.filter(m => m.id !== memberId);
+      renderGroupMembersList();
+      renderGroupBlogs(currentGroupId);
+    });
+  });
 }
 
 async function renameCurrentGroup(newName){
@@ -731,18 +842,60 @@ async function renameCurrentGroup(newName){
   renderGroupsList();
 }
 
+let currentGroupFilterAuthor = null, currentGroupFilterName = null;
+
 async function renderGroupBlogs(groupId){
   const list = document.getElementById('group-blogs-list');
   const empty = document.getElementById('group-blogs-empty');
   const { data, error } = await sb.rpc('list_group_blogs', { p_token: token, p_group_id: groupId });
   if(error){ showAlert(rpcErrMsg(error)); return; }
-  const blogs = data || [];
+  let blogs = data || [];
+  if(currentGroupFilterAuthor){
+    blogs = blogs.filter(b => b.author_id === currentGroupFilterAuthor);
+  }
   list.innerHTML = '';
   empty.style.display = blogs.length ? 'none' : 'block';
   blogs.forEach(b=>{
-    const card = renderBlogCard(b, b.author_id, b.author_id === me.id, b.author_id === me.id ? null : b.author_name, groupId);
+    const card = renderBlogCard(b, b.author_id, b.author_id === me.id, b.author_id === me.id ? null : b.author_name, groupId, currentGroupIsOwner);
     list.appendChild(card);
   });
+}
+
+function openGroupFilterPicker(){
+  sb.rpc('list_group_members', { p_token: token, p_group_id: currentGroupId }).then(({ data })=>{
+    lastGroupFilterData = data || [];
+    document.getElementById('group-filter-search').value = '';
+    renderGroupFilterList();
+    document.getElementById('group-filter-overlay').classList.add('open');
+  });
+}
+function renderGroupFilterList(){
+  const q = document.getElementById('group-filter-search').value.trim().toLowerCase();
+  const wrap = document.getElementById('group-filter-list');
+  wrap.innerHTML = '';
+  lastGroupFilterData
+    .filter(m => !q || m.display_name.toLowerCase().includes(q) || m.username.toLowerCase().includes(q))
+    .forEach(m=>{
+      const row = document.createElement('div');
+      row.className = 'row-item';
+      row.innerHTML = `<div><div class="rl">${escapeHtml(m.display_name)}${m.is_owner ? '<span class="role-badge">مشرف</span>' : ''}</div><div class="rs">@${escapeHtml(m.username)}</div></div>
+        <button class="btn" style="width:auto; padding:7px 12px; font-size:12px;">اختار</button>`;
+      row.querySelector('button').onclick = ()=>{
+        currentGroupFilterAuthor = m.id;
+        currentGroupFilterName = m.display_name;
+        document.getElementById('group-filter-chip-text').textContent = 'مدونات: ' + m.display_name;
+        document.getElementById('group-filter-chip').style.display = 'flex';
+        closeSheet('group-filter-overlay');
+        renderGroupBlogs(currentGroupId);
+      };
+      wrap.appendChild(row);
+    });
+}
+function clearGroupFilter(){
+  currentGroupFilterAuthor = null;
+  currentGroupFilterName = null;
+  document.getElementById('group-filter-chip').style.display = 'none';
+  renderGroupBlogs(currentGroupId);
 }
 
 function openGroupComposer(){
@@ -753,7 +906,14 @@ function openGroupComposer(){
 async function openGroupInvitePicker(){
   const { data, error } = await sb.rpc('list_group_invitable_friends', { p_token: token, p_group_id: currentGroupId });
   if(error){ showAlert(rpcErrMsg(error)); return; }
-  const list = data || [];
+  lastInvitableData = data || [];
+  document.getElementById('invitable-friends-search').value = '';
+  renderInvitablePickerList();
+  document.getElementById('group-invite-picker-overlay').classList.add('open');
+}
+function renderInvitablePickerList(){
+  const q = document.getElementById('invitable-friends-search').value.trim().toLowerCase();
+  const list = lastInvitableData.filter(f => !q || f.display_name.toLowerCase().includes(q) || f.username.toLowerCase().includes(q));
   const wrap = document.getElementById('invitable-friends-list');
   const empty = document.getElementById('invitable-friends-empty');
   wrap.innerHTML = '';
@@ -766,12 +926,12 @@ async function openGroupInvitePicker(){
     row.querySelector('button').onclick = async ()=>{
       const { error: e2 } = await sb.rpc('invite_to_group', { p_token: token, p_group_id: currentGroupId, p_target_user_id: f.id });
       if(e2){ showAlert(rpcErrMsg(e2)); return; }
+      lastInvitableData = lastInvitableData.filter(x => x.id !== f.id);
       row.remove();
       showToast('اتبعتت الدعوة');
     };
     wrap.appendChild(row);
   });
-  document.getElementById('group-invite-picker-overlay').classList.add('open');
 }
 
 async function refreshGroupInviteBadge(){
