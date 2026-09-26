@@ -10,6 +10,7 @@ const ACCENTS = ['#c9a66b', '#a8465a', '#7fb0a0', '#8ea8d8', '#c98ea3'];
 
 let me = null;
 let token = null;
+let sessionEpoch = 0;
 let editingBlogId = null;
 let composingGroupId = null;
 
@@ -125,6 +126,7 @@ async function doSignup(){
   if(error){ err.textContent = rpcErrMsg(error); return; }
 
   token = data.token; me = data.profile;
+  sessionEpoch++;
   localStorage.setItem(TOKEN_KEY, token);
   showIntroIfNeeded();
 }
@@ -140,6 +142,7 @@ async function doLogin(){
   if(error){ err.textContent = rpcErrMsg(error); return; }
 
   token = data.token; me = data.profile;
+  sessionEpoch++;
   localStorage.setItem(TOKEN_KEY, token);
   showIntroIfNeeded();
 }
@@ -152,6 +155,7 @@ async function doLogout(){
   stopNotifPoll();
   localStorage.removeItem(TOKEN_KEY);
   token = null; me = null;
+  sessionEpoch++;
   document.getElementById('app-shell').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
   showLogin();
@@ -174,6 +178,7 @@ function confirmDeleteAccount(){
     stopNotifPoll();
     localStorage.removeItem(TOKEN_KEY);
     token = null; me = null;
+    sessionEpoch++;
     document.getElementById('app-shell').style.display='none';
     document.getElementById('auth-screen').style.display='flex';
     showLogin();
@@ -464,7 +469,9 @@ function deleteBlog(blogId, groupId){
 async function renderMyBlogs(){
   const list = document.getElementById('my-blogs-list');
   list.innerHTML = loadingHTML();
+  const epoch = sessionEpoch;
   const { data } = await sb.rpc('list_blogs', { p_token: token, p_author_id: me.id });
+  if(epoch !== sessionEpoch) return;
   const mine = data || [];
   updateBlogCountDisplay(mine.length);
   list.innerHTML = '';
@@ -602,7 +609,9 @@ async function renderFriendsGrid(skipFetch){
   if(!skipFetch){
     empty.style.display = 'none';
     grid.innerHTML = loadingHTML();
+    const epoch = sessionEpoch;
     const { data } = await sb.rpc('list_friends', { p_token: token });
+    if(epoch !== sessionEpoch) return;
     lastFriendsData = data || [];
   }
   const q = document.getElementById('friends-search').value.trim().toLowerCase();
@@ -678,7 +687,9 @@ async function renderGroupsList(){
   const empty = document.getElementById('groups-empty');
   empty.style.display = 'none';
   grid.innerHTML = loadingHTML();
+  const epoch = sessionEpoch;
   const { data } = await sb.rpc('list_my_groups', { p_token: token });
+  if(epoch !== sessionEpoch) return;
   const list = data || [];
   grid.innerHTML = '';
   empty.style.display = list.length ? 'none' : 'block';
@@ -858,7 +869,9 @@ async function renderGroupBlogs(groupId){
   const empty = document.getElementById('group-blogs-empty');
   empty.style.display = 'none';
   list.innerHTML = loadingHTML();
+  const epoch = sessionEpoch;
   const { data, error } = await sb.rpc('list_group_blogs', { p_token: token, p_group_id: groupId });
+  if(epoch !== sessionEpoch) return;
   if(error){ showAlert(rpcErrMsg(error)); return; }
   let blogs = data || [];
   if(currentGroupFilterAuthor){
@@ -994,10 +1007,12 @@ async function renderBlockList(){
   const empty = document.getElementById('block-empty');
   empty.style.display = 'none';
   wrap.innerHTML = loadingHTML();
+  const epoch = sessionEpoch;
   const [{ data: friends }, { data: blockedIds }] = await Promise.all([
     sb.rpc('list_friends', { p_token: token }),
     sb.rpc('list_blocked', { p_token: token })
   ]);
+  if(epoch !== sessionEpoch) return;
   const accepted = (friends||[]).filter(f=>f.status==='accepted');
   const blocked = new Set(blockedIds||[]);
   wrap.innerHTML = '';
@@ -1053,7 +1068,9 @@ async function renderNotifications(){
   const empty = document.getElementById('notif-empty');
   empty.style.display = 'none';
   list.innerHTML = loadingHTML();
+  const epoch = sessionEpoch;
   const { data } = await sb.rpc('list_notifications', { p_token: token });
+  if(epoch !== sessionEpoch) return;
   const rows = data || [];
   const groups = groupNotifications(rows);
   list.innerHTML = '';
@@ -1120,6 +1137,7 @@ function showAuthScreen(){
   const { data, error } = await sb.rpc('get_session_profile', { p_token: saved });
   if(error || !data){ localStorage.removeItem(TOKEN_KEY); showAuthScreen(); return; }
   token = saved; me = data;
+  sessionEpoch++;
   document.getElementById('boot-loading').style.display = 'none';
   showIntroIfNeeded();
 })();
