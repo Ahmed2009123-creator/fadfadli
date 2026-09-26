@@ -20,6 +20,9 @@ function readingTimeLabel(bodyHtml){
   const mins = Math.max(1, Math.round(words/130));
   return mins + ' د قراءة';
 }
+function loadingHTML(){
+  return `<div class="loading-state"><div class="loading-spinner"></div><div class="loading-brand">فضفضلي</div></div>`;
+}
 function sanitizeHtml(html){
   if(typeof DOMPurify === 'undefined') return stripHtml(html); // احتياطي: لو المكتبة ماتحمّلتش، اعرض نص خام بس من غير أي HTML
   return DOMPurify.sanitize(html, {
@@ -449,16 +452,18 @@ async function submitBlog(title, body, font, alsoPersonal){
   else renderMyBlogs();
 }
 
-function deleteBlog(blogId){
+function deleteBlog(blogId, groupId){
   showConfirm('هل تريد حذف هذه المدونة فعلاً؟', async ()=>{
     const { error } = await sb.rpc('delete_blog', { p_token: token, p_blog_id: blogId });
     if(error){ showAlert(rpcErrMsg(error)); return; }
-    renderMyBlogs();
+    if(groupId) renderGroupBlogs(groupId);
+    else renderMyBlogs();
   });
 }
 
 async function renderMyBlogs(){
   const list = document.getElementById('my-blogs-list');
+  list.innerHTML = loadingHTML();
   const { data } = await sb.rpc('list_blogs', { p_token: token, p_author_id: me.id });
   const mine = data || [];
   updateBlogCountDisplay(mine.length);
@@ -502,7 +507,7 @@ function renderBlogCard(b, authorId, isMine, authorLabel, groupId, canToggleHide
   }
   if(isMine){
     icons[idx].addEventListener('click', (e)=>{ e.stopPropagation(); openEditComposer(b.id, b.title, b.body, b.font, b.color); });
-    icons[idx+1].addEventListener('click', (e)=>{ e.stopPropagation(); deleteBlog(b.id); });
+    icons[idx+1].addEventListener('click', (e)=>{ e.stopPropagation(); deleteBlog(b.id, groupId); });
   }
   return card;
 }
@@ -592,12 +597,14 @@ async function rejectFriendRequest(otherId){
 }
 
 async function renderFriendsGrid(skipFetch){
+  const grid = document.getElementById('friends-grid');
+  const empty = document.getElementById('friends-empty');
   if(!skipFetch){
+    empty.style.display = 'none';
+    grid.innerHTML = loadingHTML();
     const { data } = await sb.rpc('list_friends', { p_token: token });
     lastFriendsData = data || [];
   }
-  const grid = document.getElementById('friends-grid');
-  const empty = document.getElementById('friends-empty');
   const q = document.getElementById('friends-search').value.trim().toLowerCase();
   const list = lastFriendsData.filter(f => !q || f.display_name.toLowerCase().includes(q) || f.username.toLowerCase().includes(q));
   grid.innerHTML = '';
@@ -669,6 +676,8 @@ async function doCreateGroup(){
 async function renderGroupsList(){
   const grid = document.getElementById('groups-grid');
   const empty = document.getElementById('groups-empty');
+  empty.style.display = 'none';
+  grid.innerHTML = loadingHTML();
   const { data } = await sb.rpc('list_my_groups', { p_token: token });
   const list = data || [];
   grid.innerHTML = '';
@@ -847,6 +856,8 @@ let currentGroupFilterAuthor = null, currentGroupFilterName = null;
 async function renderGroupBlogs(groupId){
   const list = document.getElementById('group-blogs-list');
   const empty = document.getElementById('group-blogs-empty');
+  empty.style.display = 'none';
+  list.innerHTML = loadingHTML();
   const { data, error } = await sb.rpc('list_group_blogs', { p_token: token, p_group_id: groupId });
   if(error){ showAlert(rpcErrMsg(error)); return; }
   let blogs = data || [];
@@ -981,6 +992,8 @@ async function openGroupInvites(){
 async function renderBlockList(){
   const wrap = document.getElementById('block-list');
   const empty = document.getElementById('block-empty');
+  empty.style.display = 'none';
+  wrap.innerHTML = loadingHTML();
   const [{ data: friends }, { data: blockedIds }] = await Promise.all([
     sb.rpc('list_friends', { p_token: token }),
     sb.rpc('list_blocked', { p_token: token })
@@ -1038,6 +1051,8 @@ function groupNotifications(rows){
 async function renderNotifications(){
   const list = document.getElementById('notif-list');
   const empty = document.getElementById('notif-empty');
+  empty.style.display = 'none';
+  list.innerHTML = loadingHTML();
   const { data } = await sb.rpc('list_notifications', { p_token: token });
   const rows = data || [];
   const groups = groupNotifications(rows);
@@ -1095,12 +1110,17 @@ function confirmClearNotifications(){
 }
 
 /* ---------------- BOOTSTRAP ---------------- */
+function showAuthScreen(){
+  document.getElementById('boot-loading').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+}
 (async function init(){
   const saved = localStorage.getItem(TOKEN_KEY);
-  if(!saved) return;
+  if(!saved){ showAuthScreen(); return; }
   const { data, error } = await sb.rpc('get_session_profile', { p_token: saved });
-  if(error || !data){ localStorage.removeItem(TOKEN_KEY); return; }
+  if(error || !data){ localStorage.removeItem(TOKEN_KEY); showAuthScreen(); return; }
   token = saved; me = data;
+  document.getElementById('boot-loading').style.display = 'none';
   showIntroIfNeeded();
 })();
 

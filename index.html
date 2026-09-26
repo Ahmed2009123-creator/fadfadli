@@ -254,6 +254,31 @@
     margin-top:10px;
   }
 
+  /* حالة التحميل: بتظهر مكان المحتوى القديم فورًا لحد ما البيانات الجديدة توصل */
+  .loading-state{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    padding:54px 10px;
+    grid-column: 1 / -1;
+  }
+  .loading-spinner{
+    width:34px; height:34px;
+    border-radius:50%;
+    border:3px solid var(--border-gold);
+    border-top-color: var(--gold-bright);
+    animation: fadfadliSpin .8s linear infinite;
+  }
+  .loading-brand{
+    font-family:'Aref Ruqaa', serif;
+    font-size:19px;
+    color:var(--gold-bright);
+    letter-spacing:1px;
+  }
+  @keyframes fadfadliSpin{ to{ transform: rotate(360deg); } }
+
   /* bottom nav */
   nav.bottom{
     display:flex;
@@ -620,8 +645,16 @@
 <div class="device">
   <div class="screen">
 
+    <!-- ============ BOOT LOADING (لحد ما نتأكد فيه حساب محفوظ ولا لأ) ============ -->
+    <div id="boot-loading" style="display:flex; flex:1; align-items:center; justify-content:center;">
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <div class="loading-brand" style="font-size:26px;">فضفضلي</div>
+      </div>
+    </div>
+
     <!-- ============ AUTH SCREEN ============ -->
-    <div id="auth-screen">
+    <div id="auth-screen" style="display:none;">
       <div class="logo-mark brand">فضفضلي</div>
       <div class="tagline">مساحتك عشان تفضفض... وتسيب أثر يستاهل يتقرا</div>
 
