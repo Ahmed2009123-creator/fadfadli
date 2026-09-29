@@ -35,6 +35,7 @@ function rpcErrMsg(error){
   const msg = (error && error.message) || '';
   if(msg.includes('username_taken')) return 'اسم المستخدم ده متاخد، جرب اسم تاني';
   if(msg.includes('username_length')) return 'اسم المستخدم لازم يكون بين ٣ و١٢ حرف';
+  if(msg.includes('username_ascii_only')) return 'اسم المستخدم لازم يكون بحروف إنجليزية وأرقام بس';
   if(msg.includes('invalid_credentials')) return 'اسم المستخدم أو كلمة المرور غلط';
   if(msg.includes('invalid_input')) return 'البيانات المدخلة مش صح';
   if(msg.includes('user_not_found')) return 'مفيش مستخدم بالاسم ده';
@@ -120,6 +121,7 @@ async function doSignup(){
   err.textContent = '';
   if(!username || !pass){ err.textContent = 'لازم تكتب اسم المستخدم وكلمة المرور'; return; }
   if(username.length < 3 || username.length > 12){ err.textContent = 'اسم المستخدم لازم يكون بين ٣ و١٢ حرف'; return; }
+  if(!/^[A-Za-z0-9_]+$/.test(username)){ err.textContent = 'اسم المستخدم لازم يكون بحروف إنجليزية وأرقام بس (من غير مسافات أو حروف عربية)'; return; }
   if(pass.length < 6){ err.textContent = 'كلمة المرور لازم تكون ٦ حروف على الأقل'; return; }
 
   const { data, error } = await sb.rpc('signup_user', { p_username: username, p_password: pass, p_display_name: dn });
