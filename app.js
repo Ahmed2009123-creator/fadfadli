@@ -121,7 +121,9 @@ async function doSignup(){
   err.textContent = '';
   if(!username || !pass){ err.textContent = 'لازم تكتب اسم المستخدم وكلمة المرور'; return; }
   if(username.length < 3 || username.length > 12){ err.textContent = 'اسم المستخدم لازم يكون بين ٣ و١٢ حرف'; return; }
-  if(!/^[A-Za-z0-9_]+$/.test(username)){ err.textContent = 'اسم المستخدم لازم يكون بحروف إنجليزية وأرقام بس (من غير مسافات أو حروف عربية)'; return; }
+  if(/\s/.test(username)){ err.textContent = 'اسم المستخدم مينفعش يحتوي على مسافات خالص'; return; }
+  if(!/^[A-Za-z0-9_]+$/.test(username)){ err.textContent = 'اسم المستخدم لازم يكون بحروف إنجليزية وأرقام بس (من غير حروف عربية)'; return; }
+  if((username.match(/[A-Za-z]/g) || []).length < 2){ err.textContent = 'اسم المستخدم لازم يحتوي على حرفين إنجليزيين على الأقل'; return; }
   if(pass.length < 6){ err.textContent = 'كلمة المرور لازم تكون ٦ حروف على الأقل'; return; }
 
   const { data, error } = await sb.rpc('signup_user', { p_username: username, p_password: pass, p_display_name: dn });
